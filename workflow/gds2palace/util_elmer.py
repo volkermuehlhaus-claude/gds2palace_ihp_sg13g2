@@ -52,6 +52,24 @@ def write_elmer_frequencies (elmer_freq_file,
 
             # sort and write to file
             frequency_list.sort()
+
+            # De-duplicate: Elmer's "Scanning" simulation solves one full pass per
+            # line of frequencies.dat, addressed by index - a duplicate value on two
+            # lines (whether bit-identical, or merely rounding to the same text
+            # below) means Elmer silently re-solves the same physical frequency
+            # twice. Coincidental overlap between the sweep, fpoint, and fdump (or
+            # float drift from repeated "f = f + fstep" additions landing next to a
+            # user-specified value) is common, so dedupe on the same 3-significant-
+            # digit text written below rather than exact float equality.
+            deduped = []
+            seen = set()
+            for freq in frequency_list:
+                key = f"{freq:.3e}"
+                if key not in seen:
+                    seen.add(key)
+                    deduped.append(freq)
+            frequency_list = deduped
+
             for n, freq in enumerate(frequency_list):
                 freqfile.write(f"{n+1}  {freq:.3e}\n")
 
@@ -62,21 +80,28 @@ def write_elmer_frequencies (elmer_freq_file,
         return num_frequencies  
 
 def write_elmer_physics_file (unit,
-                              elmer_physics_file, 
-                              num_frequencies, 
-                              Elmer_materials, 
+                              elmer_physics_file,
+                              num_frequencies,
+                              Elmer_materials,
                               Elmer_bodies,
                               Elmer_boundaries,
                               Elmer_ports,
                               PEC_boundaries,
                               PML_boundaries,
-                              PMC_boundaries):
-        
-        with open(elmer_physics_file, "w") as f:  
-            
-            # specify storage of dump files
-            item = '! Dont save vtu files (other options: "after timestep", "after all")\n'
-            item = item + 'Solver 3 :: Exec Solver = String "never"\n\n'
+                              PMC_boundaries,
+                              f_dump_list=None):
+
+        with open(elmer_physics_file, "w") as f:
+
+            # specify storage of dump files: only when fdump frequencies were requested,
+            # since Elmer's "Scanning" simulation has no per-sample SaveStep like Palace -
+            # this dumps fields at every solved frequency, not just the fdump-selected ones
+            dump_requested = bool(f_dump_list)
+            if dump_requested:
+                item = '! Save vtu field dump files at every solved frequency (other options: "after timestep", "after all")\n'
+            else:
+                item = '! Dont save vtu files (other options: "after timestep", "after all")\n'
+            item = item + f'Solver 3 :: Exec Solver = String "{"Always" if dump_requested else "never"}"\n\n'
             f.write(item + '\n')
 
             # frequency block that references output file frequencies.dat
@@ -170,9 +195,18 @@ def write_elmer_physics_file (unit,
                 f.write(item + '\n')
 
             if len(PMC_boundaries) > 0:
-                print('PMC boundaries are not supported by Elmer workflow')
-                f.close()   
-                exit(1)
+                # No physics keywords needed: per the ElmerModelsManual VectorHelmholtz chapter,
+                # the natural (Neumann) boundary condition of this curl-curl formulation - i.e.
+                # what a boundary gets when no Robin/Dirichlet keyword is written for it at all -
+                # is exactly the PMC (zero tangential H) condition. The mesh already carries a
+                # physical group named 'PMC_boundary' for these faces (see util_simulation_setup.py),
+                # so an explicit-but-empty block here is enough; Elmer applies the natural BC to it.
+                n = n+1
+                name = 'PMC_boundary'
+                item = f'Boundary Condition {n+1}\n'
+                item = item + f'   Name = "{name}"\n'
+                item = item + "End\n"
+                f.write(item + '\n')
 
         f.close()   
 
@@ -376,15 +410,28 @@ def write_case_and_solver_files (targetdir, order, iterative, ELMER_MPI_THREADS=
 
 def write_elmer_thermal_file (unit,
                                 elmer_thermal_file,
-                                Elmer_materials, 
+                                Elmer_materials,
                                 Elmer_bodies,
                                 Elmer_boundaries,
                                 Elmer_body_forces,
-                                Elmer_thermal_boundaryconditions):
-    
+                                Elmer_thermal_boundaryconditions,
+                                iterative=True):
+
     with open(elmer_thermal_file, "w") as f:
 
         vtu_file = '../thermal_results.vtu'
+
+        if iterative:
+            linear_system_block = '''Linear System Solver = Iterative
+Linear System Iterative Method = BiCGStabl
+Linear System Max Iterations = 100000
+Linear System Convergence Tolerance = 1.0e-7
+Linear System Preconditioning = ILU1'''
+        else:
+            # MUMPS is not available in the Windows Elmer build - UMFPACK ships
+            # with Elmer on all platforms and needs no extra solver-specific options
+            linear_system_block = '''Linear System Solver = Direct
+Linear System Direct Method = umfpack'''
 
         header1=f'''
 Check Keywords "warn"
@@ -414,11 +461,7 @@ Solver 1
 Equation = Heat Equation
 Procedure = "HeatSolve" "HeatSolver"
 Variable = Temperature
-Linear System Solver = Iterative
-Linear System Iterative Method = BiCGStabl
-Linear System Max Iterations = 2500
-Linear System Convergence Tolerance = 1.0e-10
-Linear System Preconditioning = ILU1
+{linear_system_block}
 Steady State Convergence Tolerance = 1.0e-5
 End        
 
