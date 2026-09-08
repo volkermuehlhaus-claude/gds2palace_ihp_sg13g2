@@ -150,9 +150,9 @@ To actually simulate the model created by gds2palace, you need to have AWS Palac
 
 ### Installing the Palace solver using Apptainer 
 
-For development of gds2palace, Palace was installed using the Singularity/Apptainer installation method. This was rather simple and straightforward, even with no knowledge about container usage. Some documentation on creating and using this container solution can be found here: [<u>https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/Installing_Palace_using_Apptainer.pdf</u>  ](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/Installing_Palace_using_Apptainer.pdf)
+For development of gds2palace, Palace was installed using the Singularity/Apptainer installation method. This was rather simple and straightforward, even with no knowledge about container usage. A step-by-step guide can be found here: [building-palace-apptainer.md](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/building-palace-apptainer.md)
 
-Starting in March 2026, we also provide a pre-built container image for Palace. To download the palace version 0.16 container into your current directory:  
+A pre-built container image for the last officially released Palace version (0.16) is also available, if you'd rather not build anything yourself. To download it into your current directory:  
 
 ```
 $ apptainer pull palace_016.sif oras://ghcr.io/volkermuehlhaus/palace_016:latest
@@ -161,7 +161,7 @@ $ apptainer pull palace_016.sif oras://ghcr.io/volkermuehlhaus/palace_016:latest
 ### Installing the Palace solver using spack package manager 
 
 Palace can also be created from source with a few simple commands. All tools required by the build process will be downloaded and installed automatically by spack, so you can sit and watch while your system builds the software.  
-Notes on compiling Palace using the **spack package manager for Linux** : [Installing Palace <u>using spack</u> ](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/Installing_Palace_using_Spack.pdf)
+A step-by-step guide for compiling Palace using the **spack package manager for Linux** : [building-palace-spack.md](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/building-palace-spack.md)
 
 ### Running Palace (after installation) 
 

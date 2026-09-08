@@ -49,9 +49,12 @@ For development of this workflow, Palace was installed using the Singularity/App
 
 ### Installing the Palace solver using **apptainer container manager**:
 
-A detailed documentation is available here:
-[Installing Palace using Apptainer](./doc/Installing_Palace_using_Apptainer.pdf)  
-Starting in March 2026, a pre-built container image is available. To download the palace version 0.16 container into your current directory:
+A detailed step-by-step guide is available here:
+[building-palace-apptainer.md](./doc/building-palace-apptainer.md)
+
+A pre-built container image for the last officially released Palace version (0.16) is also
+available, if you'd rather not build anything yourself. To download it into your current
+directory:
 
 ```
 $ apptainer pull palace_016.sif oras://ghcr.io/volkermuehlhaus/palace_016:latest
@@ -60,8 +63,8 @@ $ apptainer pull palace_016.sif oras://ghcr.io/volkermuehlhaus/palace_016:latest
 ### Installing the Palace solver using **spack package manager**
 Palace can also be created from source with a few simple commands. All tools required by the build process will be downloaded and installed automatically by spack, so you can sit and watch while your system builds the software.
 
-Notes in compiling Palace using the **spack package manager for Linux**:
-[Installing Palace using spack](./doc/Installing_Palace_using_Spack.pdf)  
+A detailed step-by-step guide for compiling Palace using the **spack package manager for Linux**:
+[building-palace-spack.md](./doc/building-palace-spack.md)  
 Thread on compiling Palace using the **spack package manager for MacOS**:
 [Spack install for MacOS outdated?](https://github.com/awslabs/palace/issues/581)  
 
