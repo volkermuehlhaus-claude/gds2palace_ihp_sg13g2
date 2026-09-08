@@ -1633,15 +1633,17 @@ def create_model (excite_ports, settings):
         elif name in metal_volume_dict.keys():
             metal_volume_dict[name].append(tag)
 
-            # vias are volume-only above, but also register their lateral (vertical)
-            # side surfaces as a physical group, for meshing/visualization. Top/bottom
-            # mating faces stay attributed to the metal layers the via connects to (they
-            # are already picked up by those layers' own surface registration above), so
-            # only keep the vertical faces here - including the mating faces would trip
-            # the "conductor layers touch" duplicate-surface check below as a false
-            # positive, since a via touching the metals above/below it is by design.
+            # vias are volume-only above, but for Elmer thermal models we also register
+            # their lateral (vertical) side surfaces as a physical group, for
+            # meshing/visualization. Top/bottom mating faces stay attributed to the
+            # metal layers the via connects to (they are already picked up by those
+            # layers' own surface registration above), so only keep the vertical faces
+            # here - including the mating faces would trip the "conductor layers touch"
+            # duplicate-surface check below as a false positive, since a via touching
+            # the metals above/below it is by design. Not needed (and not created) for
+            # Palace RF models, where vias are handled purely as domain conductors.
             via_metal = metals_list.getbylayername(name)
-            if via_metal is not None and via_metal.is_via:
+            if elmer_thermal and via_metal is not None and via_metal.is_via:
                 _, surfaceloops = gmsh.model.occ.getSurfaceLoops(tag)
                 vertical_faces = [t for loop in surfaceloops for t in loop if is_vertical_surface(t)]
                 if vertical_faces:
@@ -2088,6 +2090,11 @@ def create_model (excite_ports, settings):
                     Palace_impedance['Attributes'] = [grouptag]
                     Palace_impedance['Rs'] = material.Rs
                     Palace_impedances.append(Palace_impedance) # append to global list
+                elif metal.is_via:
+                    # via lateral surface (Elmer thermal only, for mesh refinement/visualization) -
+                    # the via itself is already a domain conductor via physical_groups_3D, so no
+                    # boundary condition is needed for its surface
+                    pass
                 else:
                     # we should never get here
                     print(f'Invalid surface found, layer {metal}, physical group {grouptag}')
@@ -2383,6 +2390,11 @@ def create_model (excite_ports, settings):
                             # sheet metal for resistors etc
                             print('Sheet resistors not supported yet for Elmer model output!')
                             exit(1)
+                        elif metal.is_via:
+                            # via lateral surface, registered only for mesh refinement/visualization -
+                            # the via itself is already a domain conductor via physical_groups_3D, so no
+                            # boundary condition is needed for its surface
+                            pass
                         else:
                             # we should never get here
                             print(f'Invalid surface found, layer {metal}, physical group {grouptag}')
