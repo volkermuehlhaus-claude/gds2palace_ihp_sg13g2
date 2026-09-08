@@ -497,11 +497,11 @@ and produces raw S-parameters — is entirely external to this repo and this pac
 Two documented installation paths for the Palace binary, **both Linux-only**
 (`README.md:25`: *"This workflow is designed for Linux systems"*):
 
-1. **Apptainer/Singularity container** (the author's own recommended path):
+1. **Apptainer/Singularity container**: build from source per `doc/building-palace-apptainer.md`
+   (targets Palace 0.17.0), or pull the prebuilt 0.16 image —
    `apptainer pull palace_016.sif oras://ghcr.io/volkermuehlhaus/palace_016:latest`
-   (`README.md:52`). Documented in `doc/Installing_Palace_using_Apptainer.pdf` (present in the
-   repo; PDF, not inlined as markdown anywhere).
-2. **Build from source via the Spack package manager** — `doc/Installing_Palace_using_Spack.pdf`.
+   (`README.md`).
+2. **Build from source via the Spack package manager** — `doc/building-palace-spack.md`.
 
 Either way, the repo's own reference launcher, **`scripts/run_palace`** (full file, 2 lines):
 ```bash
