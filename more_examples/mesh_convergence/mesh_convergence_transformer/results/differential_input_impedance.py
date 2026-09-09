@@ -4,13 +4,9 @@ Transformer_IMN, for a REAL floating differential 100 ohm load placed
 directly across the secondary (ports 4,5) -- not the mixed-mode Sdd11
 assumption, which implicitly terminates ports 4 and 5 individually to
 ground at 50 ohm each (a different, non-floating termination). 100 ohm
-(not 50 ohm) is used because a floating load bridging two ports that are
-each individually referenced to 50 ohm has a *natural* differential
-impedance of 2x50 = 100 ohm -- the same reasoning behind Z_DIFF_REF below.
-Verified against an independent ADS circuit simulation (SNP block with a
-real 100 ohm Term element bridging each port pair, port 3 grounded,
-Zin = stoz(S11,100)): matches to 3 decimal places at 30 GHz on the 1 um
-mesh (36.788+84.804j ohm).
+is used because a floating load bridging two ports that are each
+individually referenced to 50 ohm has a *natural* differential impedance
+of 2x50 = 100 ohm -- the same reasoning behind Z_DIFF_REF below.
 
 Port 3 (primary center tap) is treated as AC-grounded (RF short, V3=0 --
 e.g. a bypass capacitor to ground), per the actual application, NOT the
