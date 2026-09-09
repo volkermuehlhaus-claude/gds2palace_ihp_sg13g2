@@ -18,9 +18,9 @@ Rendered with `gds_viewer`'s exact layer colors/dither patterns, with port posit
 Six model variants were generated from a common template (`palace_transformer_imn_mesh2.py`):
 
 - **Uniform mesh sweep:** `refined_cellsize` = 5, 4, 3, 2, 1 µm, `adaptive_mesh_iterations=0`.
-- **Adaptive mesh refinement (AMR):** `refined_cellsize=2` (starting mesh), `adaptive_mesh_iterations=3` — capped at 3 iterations per the balun study's finding that further iterations mostly add cost, not accuracy.
+- **Adaptive mesh refinement (AMR):** `refined_cellsize=2` (starting mesh), `adaptive_mesh_iterations=3` — capped at 3 iterations per the D-band balun study's finding that further iterations mostly add cost, not accuracy.
 
-`refined_cellsize_override=[['Metal3', 5.0]]` is fixed at 5 µm in every variant, matching the balun study's convention.
+`refined_cellsize_override=[['Metal3', 5.0]]` is fixed at 5 µm in every variant, matching the D-band balun study's convention.
 
 **A solver crash was hit during setup:** the original model crashed Palace with `GetMaxSingularValue()` → SLEPc NaN inside the built-in error-estimation step, reproducible even on a single isolated 150 GHz point (ruling out a low-frequency/near-DC breakdown or the PROM adaptive-sweep mechanism as the cause). After revisions to the model file, it now solves cleanly for every mesh size **except 5 µm**, which still crashes identically — the specific change responsible for the fix was not conclusively isolated. The remaining 5 µm failure points to a coarse-mesh element-quality issue specific to that cell size on this geometry (most likely a sliver/degenerate tetrahedron where a small feature — a via, gap, or the center-tap strap — isn't resolved) rather than a physics or configuration problem. **The 5 µm point is excluded from this study**; the uniform sweep below covers 4, 3, 2, 1 µm.
 
@@ -50,11 +50,7 @@ Starting mesh: 2 µm (iteration 1 numbers match the uniform 2 µm run exactly). 
 
 ![AMR convergence: error indicator norm and max ΔS per iteration](results/plots/amr3_convergence.png)
 
-The same pattern seen in the balun study repeats here, even more starkly over just 3 iterations: **Max ΔS barely moved between iteration 2 and the final iteration (0.0197 → 0.0191)**, while DOF more than tripled (677k → 2.07M) and solve time went from 28m27s to 1h46m56s. Nearly all of the S-parameter-relevant improvement happened by iteration 2; the third iteration bought over an hour of extra compute for a ~3% further reduction in Max ΔS.
-
-### What Palace's `Tol` actually measures (vs. HFSS's "Delta S")
-
-As established in the balun study: Palace's AMR stopping criterion (`Tol=1e-2` compared against the **error indicator norm**, a residual-/flux-jump-based estimate of FEM discretization error summed over the mesh) is a different quantity from HFSS's classic "Delta S" criterion (the S-matrix change between passes, measured directly on the output quantity of interest). Here the error indicator norm (0.157 → 0.121 → 0.082) never gets close to the 0.01 target even after 3 iterations, while the **S-parameter-based** Max ΔS was already small after iteration 2. Palace's `Tol`-driven refinement has no way to know the output quantity has converged — it keeps chasing field-error reduction everywhere in the domain, which is why capping the iteration budget (as done here) rather than trusting `Tol` to stop naturally is the practical approach for this kind of structure.
+The same pattern seen in the D-band balun study repeats here, even more starkly over just 3 iterations: **Max ΔS barely moved between iteration 2 and the final iteration (0.0197 → 0.0191)**, while DOF more than tripled (677k → 2.07M) and solve time went from 28m27s to 1h46m56s. Nearly all of the S-parameter-relevant improvement happened by iteration 2; the third iteration bought over an hour of extra compute for a ~3% further reduction in Max ΔS. (Palace's own `Tol` target compares against the error indicator norm, not against S-parameters directly — see the [top-level README](../README.md#norm--max-the-dirty-details-of-palaces-error-indicator) for what that number actually measures and why it doesn't track Max ΔS; the error indicator norm here, 0.157 → 0.121 → 0.082, never gets close to its own 0.01 target even after 3 iterations, while Max ΔS was already small after iteration 2.)
 
 ## 4. Mixed-mode S-parameters
 
@@ -78,7 +74,7 @@ All five traces (4 uniform meshes + AMR final) are visually indistinguishable in
 
 ## 5. Delta-S tables
 
-**Metric:** `Max|ΔS|` is the standard HFSS-style convergence metric — the maximum **linear** complex-magnitude difference over the common frequency band, computed over 1–200 GHz (the two synthetic sub-1GHz points that gds2palace injects to replace a requested DC/0Hz point are excluded from all delta-S calculations and tables — they aren't real solved frequencies of interest, same convention used in the balun study and by `palace_summary.py`'s AMR iterations). The `|dS_dB|` columns are a secondary, intuitive readout at three specific frequencies: the two sweep edges (1 GHz, 200 GHz) and the 30 GHz design frequency (§4). Tables are grouped by parameter first, then by mesh comparison.
+**Metric:** `Max|ΔS|` is the standard HFSS-style convergence metric — the maximum **linear** complex-magnitude difference over the common frequency band, computed over 1–200 GHz (the two synthetic sub-1GHz points that gds2palace injects to replace a requested DC/0Hz point are excluded from all delta-S calculations and tables — they aren't real solved frequencies of interest, same convention used in the other studies on this page and by `palace_summary.py`'s AMR iterations). The `|dS_dB|` columns are a secondary, intuitive readout at three specific frequencies: the two sweep edges (1 GHz, 200 GHz) and the 30 GHz design frequency (§4). Tables are grouped by parameter first, then by mesh comparison.
 
 ### 5a. Successive mesh steps
 
@@ -142,7 +138,7 @@ more_examples/mesh_convergence/mesh_convergence_transformer/
 └── results/
     ├── delta_S_table.csv                        # §5a
     ├── delta_S_vs_finest.csv                    # §5b
-    ├── analyze_convergence.py                   # regenerates the CSVs/plots above (mixed-mode formulas, design-freq detection)
+    ├── analyze_convergence.py                   # regenerates the CSVs/plots above (mixed-mode formulas, fixed 30 GHz design freq.)
     ├── render_labeled_layout.py                 # regenerates the labeled layout picture (§0)
     ├── snp/                                     # de-embedded (and raw) 5-port Touchstone files
     │     transformer_mesh4um.s5p … transformer_mesh1um.s5p

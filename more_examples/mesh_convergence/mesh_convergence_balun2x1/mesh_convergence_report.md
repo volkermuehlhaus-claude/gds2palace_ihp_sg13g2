@@ -121,7 +121,7 @@ Order 1 is ~5.2× fewer DOF and roughly 9-11× faster than order 2 at the same m
 ## 7. Discussion
 
 - **This structure's 2 µm coupled-line gap makes 5 µm mesh a poor choice** — Max|ΔS| up to 0.16 vs. the 1 µm reference, clearly worse than the equivalent coarse point in the transformer or balun studies (both had ≥3 µm gaps/traces relative to their coarsest mesh). **2 µm uniform mesh is the practical minimum working point** for this geometry, bringing all three Sdd parameters within 0.01–0.03 of the finest mesh at under half the 1 µm run's cost.
-- **AMR (5 µm start, 2 iterations) lands closer to the 1 µm reference than the 2 µm uniform mesh does**, on both S-parameters and the differential input impedance, without needing to already know 2 µm was a reasonable cell size — consistent with the spiral inductor study's finding, though again at higher wall-clock cost (32m 36s, 15.6 GB) than the 2 µm uniform run (11m 18s, 11.0 GB).
+- **AMR (5 µm start, 2 iterations) lands closer to the 1 µm reference than the 2 µm uniform mesh does**, on all three mixed-mode S-parameters, without needing to already know 2 µm was a reasonable cell size — consistent with the spiral inductor study's finding, though again at higher wall-clock cost (32m 36s, 15.6 GB) than the 2 µm uniform run (11m 18s, 11.0 GB).
 - **Order 1's error is coupled to mesh coarseness here**, unlike the spiral inductor's roughly mesh-independent offset — a reminder that these behaviors are structure-dependent and worth checking per design rather than assuming a prior study's pattern carries over.
 
 ## 8. Where everything lives
