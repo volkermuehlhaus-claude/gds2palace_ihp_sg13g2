@@ -65,6 +65,8 @@ Sdd21 = 0.5 * (S31 - S32 - S41 + S42)   # primary -> secondary differential tran
 Sdd22 = 0.5 * (S33 - S34 - S43 + S44)   # secondary differential return loss
 ```
 
+Since every port uses `port_Z0=50.0` (real, equal), this `bd/ad` ratio is exactly the standard mixed-mode S-parameter, referenced to a **100 Ω differential source/load impedance** (2×50 Ω) — the same 100 Ω reference used explicitly in §7's `Zin,diff` calculation. (The `√2` factor in the formal `ad=(a1-a2)/√2`, `bd=(b1-b2)/√2` definition cancels in the `bd/ad` ratio, so it's omitted above without changing the result or its reference impedance.)
+
 **Design frequency:** determined automatically as the center of the minimum-insertion-loss band (the −3 dB band around peak |Sdd21|) from the finest (1 µm) mesh result, rounded to the nearest 10 GHz → **80 GHz** (peak coupling itself is at 55 GHz, ≈ −3.0 dB — near-ideal for a 1:1 coupled transformer — but the −3dB-down band is asymmetric, spanning 17–136 GHz, so its center lands at 80 GHz).
 
 ![Sdd11 magnitude and phase vs. mesh](results/plots/sdd11_convergence.png)

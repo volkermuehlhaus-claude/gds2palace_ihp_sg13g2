@@ -20,6 +20,13 @@ given the 4-port subnetwork with local port order [1:primary+, 2:primary-,
 
 (derivation: apply a1=1, a2=-1, a3=a4=0 unit differential stimulus at the
 primary pair; b_d1 = b1-b2, b_d2 = b3-b4; Sdd_i1 = b_di / (a1-a2).)
+
+Reference impedance: every port here uses port_Z0=50.0 (real, equal), so
+this bd/ad ratio is exactly the standard Bockelman-Eisenstadt mixed-mode
+S-parameter, referenced to a 100 ohm differential source/load impedance
+(2x50 ohm) -- the sqrt(2) factor in the formal ad=(a1-a2)/sqrt(2),
+bd=(b1-b2)/sqrt(2) definition cancels in the bd/ad ratio, so it's omitted
+here without changing the result or its reference impedance.
 """
 import os
 import csv
