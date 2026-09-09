@@ -142,7 +142,7 @@ def plot_series(loaded, amr_entry, title_suffix, out_prefix, fmax_ghz=None):
         fig, ax = plt.subplots(figsize=(7, 5.5))
         for idx, (key, tr) in enumerate(zip(all_keys, all_traces)):
             color = colors[idx % len(colors)]
-            style = "--" if key == "amr" else "-"
+            style = "--" if key == "amr" or key.endswith("_order1") else "-"
             freq_ghz = tr["freq"] / 1e9
             mask = freq_ghz <= fmax_ghz
             ax.plot(freq_ghz[mask], tr[pname][mask] * scale, color=color, linestyle=style, label=tr["label"])
