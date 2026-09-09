@@ -2,6 +2,11 @@
 
 This is an (incomplete) list of changes and new features.
 
+## 08-September-2026
+Fixed a false-positive `Invalid surface found` print for via layers (e.g. `TopVia2`), introduced by the 06-September via lateral-surface change: those surfaces were being fed into the same boundary-condition builder used for regular conductor/sheet layers, which doesn't have a case for vias (they're already handled as domain conductors, not surface boundaries) and fell through to an "should never happen" branch. Via lateral surface physical groups are now only created for Elmer thermal models (their only real use, for Paraview visualization); the boundary-condition builder also now explicitly skips via layers instead of misreporting them as invalid.
+
+Unified the Palace installation documentation: `doc/building-palace-spack.md` and `doc/building-palace-apptainer.md` are now the sole maintained, up-to-date step-by-step guides (targeting Palace 0.17.0, including the gds2palace `run_palace`/`combine_snp` integration and, for Apptainer, a Windows/WSL note and the prebuilt-0.16-image quick-start). The old `doc/Installing_Palace_using_Spack.pdf` and `doc/Installing_Palace_using_Apptainer.pdf` were removed — README.md, README_pypi.md, ARCHITECTURE.md and the userguide now link the Markdown guides directly instead.
+
 ## 06-September-2026
 Elmer thermal simulations can now use a direct linear solver (UMFPACK) instead of the iterative BiCGStabl solver, via `settings['iterative']=False` — useful when the iterative solver fails to converge on a large conductivity contrast between materials. Loosened the default iterative solver's convergence tolerance and raised its iteration cap, since the previous defaults could fail to converge on some models.
 

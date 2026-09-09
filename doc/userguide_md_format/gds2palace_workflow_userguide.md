@@ -11,6 +11,7 @@ Document version: 2026-08-17
 [Required software and Python modules](#required-software-and-python-modules)  
 &ensp;[Recommended installation of gds2palace as Python module](#recommended-installation-of-gds2palace-as-python-module)  
 &ensp;[Alternative, no longer recommended: local gds2palace directory](#alternative-no-longer-recommended-local-gds2palace-directory)  
+&ensp;[External tools (not Python modules)](#external-tools-not-python-modules)  
 [Installing AWS Palace](#installing-aws-palace)  
 &ensp;[Installing the Palace solver using Apptainer](#installing-the-palace-solver-using-apptainer)  
 &ensp;[Installing the Palace solver using spack package manager](#installing-the-palace-solver-using-spack-package-manager)  
@@ -136,15 +137,22 @@ This virtual environment with installed dependencies can be used to run gds2pala
 source ~/venv/palace/bin/activate
 ```
 
+### External tools (not Python modules)
+
+Two more tools are needed for parts of the workflow, but are not installed via pip:
+
+- [ParaView](https://www.paraview.org/) — to view field-dump output (Palace/Elmer EM) and Elmer thermal result files.
+- An MPI implementation — only needed for multi-process Elmer runs (`settings['ELMER_MPI_THREADS']`, see chapter "Installing Elmer FEM"). Use OpenMPI or MPICH on Linux/macOS; on Windows, install [Microsoft MPI](https://learn.microsoft.com/en-us/message-passing-interface/microsoft-mpi).
+
 ## Installing AWS Palace 
 
 To actually simulate the model created by gds2palace, you need to have AWS Palace installed. Different methods of installing Palace are described at <u>https://awslabs.github.io/palace/stable/install/</u>  but we have compiled the most relevant methods for gds2palace users below.  
 
 ### Installing the Palace solver using Apptainer 
 
-For development of gds2palace, Palace was installed using the Singularity/Apptainer installation method. This was rather simple and straightforward, even with no knowledge about container usage. Some documentation on creating and using this container solution can be found here: [<u>https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/Installing_Palace_using_Apptainer.pdf</u>  ](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/Installing_Palace_using_Apptainer.pdf)
+For development of gds2palace, Palace was installed using the Singularity/Apptainer installation method. This was rather simple and straightforward, even with no knowledge about container usage. A step-by-step guide can be found here: [building-palace-apptainer.md](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/building-palace-apptainer.md)
 
-Starting in March 2026, we also provide a pre-built container image for Palace. To download the palace version 0.16 container into your current directory:  
+A pre-built container image for the last officially released Palace version (0.16) is also available, if you'd rather not build anything yourself. To download it into your current directory:  
 
 ```
 $ apptainer pull palace_016.sif oras://ghcr.io/volkermuehlhaus/palace_016:latest
@@ -153,7 +161,7 @@ $ apptainer pull palace_016.sif oras://ghcr.io/volkermuehlhaus/palace_016:latest
 ### Installing the Palace solver using spack package manager 
 
 Palace can also be created from source with a few simple commands. All tools required by the build process will be downloaded and installed automatically by spack, so you can sit and watch while your system builds the software.  
-Notes on compiling Palace using the **spack package manager for Linux** : [Installing Palace <u>using spack</u> ](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/Installing_Palace_using_Spack.pdf)
+A step-by-step guide for compiling Palace using the **spack package manager for Linux** : [building-palace-spack.md](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/building-palace-spack.md)
 
 ### Running Palace (after installation) 
 
@@ -786,6 +794,8 @@ Elmer FEM is not distributed with gds2palace and must be installed separately, s
 
 - **Windows:** set the environment variable `ELMER_HOME` to your Elmer install directory. gds2palace looks for `%ELMER_HOME%\bin\ElmerGrid.exe`.
 - **Linux/macOS:** make sure `ElmerGrid` and `ElmerSolver` are available on your `PATH`.
+
+If you use `settings['ELMER_MPI_THREADS']` to run Elmer across multiple processes, you also need an MPI implementation installed (see "External tools (not Python modules)" above) — on Windows this is Microsoft MPI, providing the `mpiexec`/`mpirun` launcher the generated `run_elmer` script uses.
 
 ### From a Palace model to an Elmer model
 
