@@ -8,7 +8,7 @@
 
 ## 0. Layout
 
-![ind_frame layout with port positions labeled, IHP SG13G2 pixel-accurate colors (gds_viewer)](plots/ind_frame_layout_labeled.png)
+![ind_frame layout with port positions labeled, IHP SG13G2 pixel-accurate colors (gds_viewer)](results/plots/ind_frame_layout_labeled.png)
 
 Measured directly from the GDS (KLayout, layer 134/TopMetal2): a single-polygon, 4-turn square spiral, 5 µm trace width, 5 µm spacing (10 µm pitch), ~100×115 µm footprint. Port 1 and Port 2 are via ports (Metal1→TopMetal2) at the two coil terminals — this is a plain 2-port inductor, so the L/Q/S-parameter analysis below treats ports 1,2 directly as the differential pair (`Zdiff = Z11-Z12-Z21+Z22`), with no port-reduction step needed.
 
@@ -20,7 +20,7 @@ Eight model variants were generated from a common template (`palace_ind_frame.py
 - **Adaptive mesh refinement (AMR, order 2):** `refined_cellsize=5` (starting mesh), `adaptive_mesh_iterations=2`.
 - **Order comparison:** the same 3, 2, 1 µm cell sizes re-run at `order=1`, to compare solve time/DOF against the order 2 sweep at matching mesh density (§6).
 
-Model files: `palace_ind_frame_mesh{1,2,3,5}.py`, `palace_ind_frame_amr2.py`, `palace_ind_frame_mesh{1,2,3}_order1.py` (all in `test_data/mesh_convergence_inductor/`).
+Model files: `palace_ind_frame_mesh{1,2,3,5}.py`, `palace_ind_frame_amr2.py`, `palace_ind_frame_mesh{1,2,3}_order1.py` (all in `more_examples/mesh_convergence/mesh_convergence_inductor/`).
 
 ## 2. Uniform mesh sweep — results (order 2)
 
@@ -43,7 +43,7 @@ Starting mesh: 5 µm. Requested `adaptive_mesh_iterations=2`.
 | 2 | 294,110 | 49,429 | 1.125e-01 | 3.424e-03 | 0.0146 | 2m 42s | 4.18 GB |
 | **Final** | **863,146** | **151,006** | **7.422e-02** | **1.762e-03** | **0.0102** | **9m 54s** | **11.16 GB** |
 
-![AMR convergence: error indicator norm and max ΔS per iteration](plots/amr2_convergence.png)
+![AMR convergence: error indicator norm and max ΔS per iteration](results/plots/amr2_convergence.png)
 
 Iteration 1 matches the 5 µm uniform mesh run exactly, as expected. Both the error-indicator norm and Max|ΔS| keep decreasing through the final iteration here — unlike a run given a larger iteration budget, this 2-iteration run doesn't show a clear "diminishing returns" plateau; the final iteration still delivers a meaningful accuracy gain (Max|ΔS| more than halves, from 0.0146 to 0.0102).
 
@@ -51,9 +51,9 @@ Iteration 1 matches the 5 µm uniform mesh run exactly, as expected. Both the er
 
 This is a plain 2-port network (no mixed-mode reduction needed). S12 is not shown separately (S12 = S21 by reciprocity for this passive structure).
 
-![S11 magnitude and phase vs. mesh](plots/s11_convergence.png)
-![S21 magnitude and phase vs. mesh](plots/s21_convergence.png)
-![S22 magnitude and phase vs. mesh](plots/s22_convergence.png)
+![S11 magnitude and phase vs. mesh](results/plots/s11_convergence.png)
+![S21 magnitude and phase vs. mesh](results/plots/s21_convergence.png)
+![S22 magnitude and phase vs. mesh](results/plots/s22_convergence.png)
 
 ### 4a. Successive mesh steps
 
@@ -95,9 +95,9 @@ S21 shows a much larger spread at the 50 GHz sweep edge than at 1 or 25 GHz (up 
 
 Evaluated the same way as `D:\github\plot_inductor\plot_inductor.py`: `Zdiff = Z11-Z12-Z21+Z22`, `Ldiff = Im(Zdiff)/ω`, `Qdiff = Im(Zdiff)/Re(Zdiff)`, `Rdiff = Re(Zdiff)`.
 
-![Differential inductance vs. mesh refinement](plots/inductor_LQR_convergence_l.png)
-![Differential Q factor vs. mesh refinement](plots/inductor_LQR_convergence_q.png)
-![Differential resistance vs. mesh refinement](plots/inductor_LQR_convergence_r.png)
+![Differential inductance vs. mesh refinement](results/plots/inductor_LQR_convergence_l.png)
+![Differential Q factor vs. mesh refinement](results/plots/inductor_LQR_convergence_q.png)
+![Differential resistance vs. mesh refinement](results/plots/inductor_LQR_convergence_r.png)
 
 With the sweep now extending to 50 GHz, the full Q curve is visible: **Q peaks at ~21.6 around 24 GHz** (finest mesh) and falls off on both sides. Inductance stays in a shallow bowl (~0.76-0.79 nH) from 1-10 GHz, then rises steeply above ~30 GHz toward a self-resonance that lies above the 50 GHz sweep limit (L reaches ~1.9-2.1 nH at 50 GHz without crossing zero).
 
@@ -131,11 +131,11 @@ The same 3/2/1 µm cell sizes were re-run at FEM order 1 instead of order 2, to 
 | 1 µm | 1 | 172,335 | 125,218 | 36.1 s | 5.32 GB |
 | 1 µm | 2 | 881,044 | 125,218 | 5m 5s | 9.47 GB |
 
-![Solve time and DOF: order 1 vs order 2](plots/order_comparison_time_dof.png)
-![S11/S21: order 1 (dashed) vs order 2 (solid), same cell sizes](plots/order_comparison_s_params.png)
-![Differential inductance: order 1 vs order 2](plots/inductor_LQR_order_comparison_l.png)
-![Differential Q factor: order 1 vs order 2](plots/inductor_LQR_order_comparison_q.png)
-![Differential resistance: order 1 vs order 2](plots/inductor_LQR_order_comparison_r.png)
+![Solve time and DOF: order 1 vs order 2](results/plots/order_comparison_time_dof.png)
+![S11/S21: order 1 (dashed) vs order 2 (solid), same cell sizes](results/plots/order_comparison_s_params.png)
+![Differential inductance: order 1 vs order 2](results/plots/inductor_LQR_order_comparison_l.png)
+![Differential Q factor: order 1 vs order 2](results/plots/inductor_LQR_order_comparison_q.png)
+![Differential resistance: order 1 vs order 2](results/plots/inductor_LQR_order_comparison_r.png)
 
 Order 1 is consistently ~5.2× fewer DOF and roughly 8-10× faster than order 2 at the same mesh (same mesh element count, since `refined_cellsize` — not order — drives meshing; only the FEM basis function order changes), at 40-60% of the RAM.
 
@@ -151,7 +151,8 @@ The L/Q/R plots show a small but systematic offset between order 1 and order 2 t
 ## 8. Where everything lives
 
 ```
-test_data/mesh_convergence_inductor/
+more_examples/mesh_convergence/mesh_convergence_inductor/
+├── mesh_convergence_report.md                  # this report
 ├── palace_ind_frame.py                         # original test case
 ├── palace_ind_frame_mesh{1,2,3,5}.py            # uniform mesh model scripts, order 2
 ├── palace_ind_frame_amr2.py                     # AMR model script, 5 um start, 2 iterations
@@ -159,7 +160,6 @@ test_data/mesh_convergence_inductor/
 ├── palace_model/palace_ind_frame_<name>_data/   # generated mesh/config + full Palace output
 │     (config.json, .msh, palace.json, port-S.csv, error-indicators.csv, ...)
 └── results/
-    ├── mesh_convergence_report.md               # this report
     ├── delta_S_table.csv, delta_S_vs_finest.csv # §4a/4b
     ├── delta_LQ_table.csv                       # §5 (L/Q vs. 1 um reference)
     ├── order_comparison_table.csv               # §6
@@ -179,4 +179,4 @@ test_data/mesh_convergence_inductor/
           inductor_LQR_order_comparison_{l,q,r}.png              # §6
 ```
 
-Re-run `python results/analyze_convergence.py`, `python results/plot_inductor_convergence.py`, and `python results/order_comparison.py` from `test_data/mesh_convergence_inductor/` (in the `d:\venv\palace` venv) any time to regenerate the tables and plots from the archived `.snp`/`palace.json` files.
+Re-run `python results/analyze_convergence.py`, `python results/plot_inductor_convergence.py`, and `python results/order_comparison.py` from `more_examples/mesh_convergence/mesh_convergence_inductor/` (in the `d:\venv\palace` venv) any time to regenerate the tables and plots from the archived `.snp`/`palace.json` files.

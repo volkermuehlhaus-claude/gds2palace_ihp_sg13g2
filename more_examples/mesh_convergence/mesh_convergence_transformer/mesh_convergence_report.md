@@ -8,7 +8,7 @@
 
 ## 0. Layout and turns ratio
 
-![Transformer layout with port positions labeled, IHP SG13G2 pixel-accurate colors (gds_viewer)](plots/transformer_layout_labeled.png)
+![Transformer layout with port positions labeled, IHP SG13G2 pixel-accurate colors (gds_viewer)](results/plots/transformer_layout_labeled.png)
 
 Rendered with `gds_viewer`'s exact layer colors/dither patterns, with port positions overlaid from the GDS marker layers (201–205). Per-layer polygon inspection (not just the port list) shows **both coils are single-turn octagonal spirals** — primary on TopMetal1 (orange, ~46 µm radius, 2 µm trace width, broken at the right side by the center-tap port 3), secondary on TopMetal2 (white/cream, ~50 µm radius, 2 µm trace width, no center tap, break on the left). **Turns ratio Np:Ns = 1:1**, giving a nominal ideal impedance ratio of 1:1 — consistent with the model's uniform `port_Z0=50.0` on all 5 ports. The real, frequency-dependent transformation of a coupled (k<1) transformer like this is better read from the simulated mixed-mode S-parameters (§4) than assumed from turn count alone. The dark red hatched background is the **Metal3** ground/reference plane (large but not full-footprint here, ~43% coverage), which is why `refined_cellsize_override` fixes it at 5 µm regardless of the main mesh setting.
 
@@ -23,7 +23,7 @@ Six model variants were generated from a common template (`palace_transformer_im
 
 **A solver crash was hit during setup:** the original model crashed Palace with `GetMaxSingularValue()` → SLEPc NaN inside the built-in error-estimation step, reproducible even on a single isolated 150 GHz point (ruling out a low-frequency/near-DC breakdown or the PROM adaptive-sweep mechanism as the cause). After revisions to the model file, it now solves cleanly for every mesh size **except 5 µm**, which still crashes identically — the specific change responsible for the fix was not conclusively isolated. The remaining 5 µm failure points to a coarse-mesh element-quality issue specific to that cell size on this geometry (most likely a sliver/degenerate tetrahedron where a small feature — a via, gap, or the center-tap strap — isn't resolved) rather than a physics or configuration problem. **The 5 µm point is excluded from this study**; the uniform sweep below covers 4, 3, 2, 1 µm.
 
-Model files: `palace_transformer_imn_mesh5/4/3/2/1.py`, `palace_transformer_imn_amr3.py` (all in `test_data/mesh_convergence_transformer/`) — `mesh5.py` is kept for reference but its `_data` output is not part of the result set.
+Model files: `palace_transformer_imn_mesh5/4/3/2/1.py`, `palace_transformer_imn_amr3.py` (all in `more_examples/mesh_convergence/mesh_convergence_transformer/`) — `mesh5.py` is kept for reference but its `_data` output is not part of the result set.
 
 ## 2. Uniform mesh sweep — results
 
@@ -47,7 +47,7 @@ Starting mesh: 2 µm (iteration 1 numbers match the uniform 2 µm run exactly). 
 | 2 | 676,780 | 116,336 | 1.205e-01 | 0.0197 | 28m 27s | 9.03 GB |
 | **Final** | **2,070,680** | **361,140** | **8.210e-02** | **0.0191** | **1h 46m 56s** | **25.13 GB** |
 
-![AMR convergence: error indicator norm and max ΔS per iteration](plots/amr3_convergence.png)
+![AMR convergence: error indicator norm and max ΔS per iteration](results/plots/amr3_convergence.png)
 
 The same pattern seen in the balun study repeats here, even more starkly over just 3 iterations: **Max ΔS barely moved between iteration 2 and the final iteration (0.0197 → 0.0191)**, while DOF more than tripled (677k → 2.07M) and solve time went from 28m27s to 1h46m56s. Nearly all of the S-parameter-relevant improvement happened by iteration 2; the third iteration bought over an hour of extra compute for a ~3% further reduction in Max ΔS.
 
@@ -67,9 +67,9 @@ Sdd22 = 0.5 * (S33 - S34 - S43 + S44)   # secondary differential return loss
 
 **Design frequency:** determined automatically as the center of the minimum-insertion-loss band (the −3 dB band around peak |Sdd21|) from the finest (1 µm) mesh result, rounded to the nearest 10 GHz → **80 GHz** (peak coupling itself is at 55 GHz, ≈ −3.0 dB — near-ideal for a 1:1 coupled transformer — but the −3dB-down band is asymmetric, spanning 17–136 GHz, so its center lands at 80 GHz).
 
-![Sdd11 magnitude and phase vs. mesh](plots/sdd11_convergence.png)
-![Sdd21 magnitude and phase vs. mesh](plots/sdd21_convergence.png)
-![Sdd22 magnitude and phase vs. mesh](plots/sdd22_convergence.png)
+![Sdd11 magnitude and phase vs. mesh](results/plots/sdd11_convergence.png)
+![Sdd21 magnitude and phase vs. mesh](results/plots/sdd21_convergence.png)
+![Sdd22 magnitude and phase vs. mesh](results/plots/sdd22_convergence.png)
 
 All five traces (4 uniform meshes + AMR final) are visually indistinguishable in the overlay plots — this is a well-converged structure across the entire working mesh range.
 
@@ -137,24 +137,24 @@ where `Zaa/Zab/Zba/Zbb` are antisymmetric combinations of the 4×4 Z-matrix acro
 
 **Center-tap sensitivity check:** port 3 couples almost identically to ports 1 and 2 (`Z13≈Z23` to within a few percent across the band) — i.e. the center tap sits at a near-perfect symmetry point. Since `Zin,diff` only depends on the *antisymmetric* combination of ports 1,2, this symmetric coupling to port 3 cancels out almost entirely: **the result is nearly independent of how the center tap is terminated** (open, 50 Ω, or AC-grounded all agree to within a few ohms). This is expected for a symmetric center-tapped coil (a virtual ground for differential excitation) and is a good self-consistency check on the calculation.
 
-![Differential input impedance vs. frequency](plots/zin_diff_primary_vs_freq.png)
+![Differential input impedance vs. frequency](results/plots/zin_diff_primary_vs_freq.png)
 
 **A sharp parallel resonance appears around 90–95 GHz**, where `Re(Zin,diff)` peaks at 700–800 Ω (vs. the 100 Ω natural differential reference for 50 Ω single-ended ports) with the reactance swinging from +350 Ω to −400 Ω right through it. Away from that resonance the impedance is small and reactive — near-short at low frequency, capacitive above ~120 GHz. **There is essentially no frequency in this band where the primary presents a clean match to a floating differential 50 Ω source** — the "poor matching" observed is a genuine characteristic of this transformer as simulated, not a mesh-convergence or termination-assumption artifact (mesh convergence is excellent here too — all 5 mesh variants overlap tightly, with only the resonance peak itself showing the expected small sensitivity: 700 Ω → 750 Ω → ~800 Ω for AMR as the mesh refines and better resolves the parasitic capacitance setting the resonance).
 
-![Differential Smith chart: true floating-load Zin vs. mixed-mode Sdd11-implied Zin](plots/zin_diff_smith.png)
+![Differential Smith chart: true floating-load Zin vs. mixed-mode Sdd11-implied Zin](results/plots/zin_diff_smith.png)
 
 The floating-load and mixed-mode-implied impedances trace similar overall arcs (both show poor matching throughout), but diverge meaningfully at specific frequencies — e.g. at 55 GHz (near the Sdd21 coupling peak), 61+j158 Ω (true, floating load) vs. 98+j147 Ω (Sdd11-implied) — a 37 Ω real-part difference. **If designing a matching network for this transformer, use the true `Zin,diff` (floating-load) curve, not the mixed-mode `Sdd11`** — they represent different physical termination scenarios and only agree well away from the resonance.
 
 ## 8. Where everything lives
 
 ```
-test_data/mesh_convergence_transformer/
+more_examples/mesh_convergence/mesh_convergence_transformer/
+├── mesh_convergence_report.md                   # this report
 ├── palace_transformer_imn_mesh5.py … mesh1.py   # uniform mesh model scripts (mesh5 crashes, see §1)
 ├── palace_transformer_imn_amr3.py               # AMR model script
 ├── palace_model/palace_transformer_imn_<name>_data/   # generated mesh/config + full Palace output
 │     (config.json, .msh, palace.json, port-S.csv, error-indicators.csv, ...)
 └── results/
-    ├── mesh_convergence_report.md               # this report
     ├── delta_S_table.csv                        # §5a
     ├── delta_S_vs_finest.csv                    # §5b
     ├── analyze_convergence.py                   # regenerates the CSVs/plots above (mixed-mode formulas, design-freq detection)
@@ -171,4 +171,4 @@ test_data/mesh_convergence_transformer/
           amr3_convergence.png
 ```
 
-All `.s5p` files are de-embedded (port parasitic inductance removed) unless suffixed `_raw`. Re-run `python results/analyze_convergence.py` from `test_data/mesh_convergence_transformer/` (in the `d:\venv\palace` venv) any time to regenerate the tables and plots from the archived `.snp` files.
+All `.s5p` files are de-embedded (port parasitic inductance removed) unless suffixed `_raw`. Re-run `python results/analyze_convergence.py` from `more_examples/mesh_convergence/mesh_convergence_transformer/` (in the `d:\venv\palace` venv) any time to regenerate the tables and plots from the archived `.snp` files.

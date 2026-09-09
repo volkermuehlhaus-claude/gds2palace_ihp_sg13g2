@@ -8,7 +8,7 @@
 
 ## 0. Layout
 
-![Balun layout with port positions labeled, IHP SG13G2 pixel-accurate colors (gds_viewer)](plots/balun_layout_labeled.png)
+![Balun layout with port positions labeled, IHP SG13G2 pixel-accurate colors (gds_viewer)](results/plots/balun_layout_labeled.png)
 
 Measured directly from the GDS (KLayout, layer 134/TopMetal2 and layer 30/Metal3): the balun is a folded edge-coupled line pair, 6-7 µm trace width with a 2 µm gap between the two coupled lines, routed as a rectangular loop with a ~182×201 µm bounding box inside an overall 223×225 µm cell. **Port 1** (bottom-left) feeds the primary line, which runs the full loop and is picked up by the coupled secondary line, brought out as **Port 2** and **Port 3** on the right side, only ~11 µm apart. **Metal3** is a ground/reference plane spanning the entire 223×225 µm cell footprint (aside from two small 5.6×5.6 µm cutouts) — exactly why `refined_cellsize_override` fixes it at a coarse 5 µm regardless of the main sweep setting (§1).
 
@@ -21,7 +21,7 @@ Two studies were run from the common baseline `palace_balun_mesh2.py` (`refined_
 
 In all runs, `refined_cellsize_override=[['Metal3', 5.0]]` was kept fixed at 5 µm regardless of the main cell size — Metal3 is a wide ground/reference plane that doesn't need fine local mesh, and fixing it keeps DOF growth concentrated on the layers that matter (signal traces, vias, ports) as the main sweep refines toward 1 µm.
 
-Model files: `palace_balun_mesh5.py` … `palace_balun_mesh1.py`, `palace_balun_amr5.py` (all in `test_data/mesh_convergence_D-band_balun/`).
+Model files: `palace_balun_mesh5.py` … `palace_balun_mesh1.py`, `palace_balun_amr5.py` (all in `more_examples/mesh_convergence/mesh_convergence_D-band_balun/`).
 
 ## 2. Uniform mesh sweep — results
 
@@ -56,15 +56,15 @@ The practical consequence shows up directly in this study: Palace kept refining 
 | 4 | 1,679,078 | 299,505 | 8.504e-02 | 0.0212 | 44m 18s | 19.35 GB |
 | **Final** | **4,654,886** | **852,533** | **5.439e-02** | **0.0093** | **2h 22m 31s** | **50.97 GB** |
 
-![AMR convergence: error indicator norm and max ΔS per iteration](plots/amr5_convergence.png)
+![AMR convergence: error indicator norm and max ΔS per iteration](results/plots/amr5_convergence.png)
 
 By the final iteration the AMR mesh reached **7× the DOF of the finest uniform mesh (1 µm)**, took **20× longer** than the 1 µm uniform run, and used **7× the peak RAM** — on a 32-core/109 GB machine that's still fine, but it would not fit comfortably on a smaller workstation. Per-iteration Max ΔS (Palace's own linear delta-S vs. the previous iteration) does show real, monotonic convergence (0.061 → 0.041 → 0.021 → 0.009), just not fast enough to reach the 1% target within 5 iterations for this geometry.
 
 ## 4. S-parameter overlays (all mesh variants + AMR final)
 
-![S11 magnitude and phase vs. mesh](plots/s11_convergence.png)
-![S21 magnitude and phase vs. mesh](plots/s21_convergence.png)
-![S23 magnitude and phase vs. mesh](plots/s23_convergence.png)
+![S11 magnitude and phase vs. mesh](results/plots/s11_convergence.png)
+![S21 magnitude and phase vs. mesh](results/plots/s21_convergence.png)
+![S23 magnitude and phase vs. mesh](results/plots/s23_convergence.png)
 
 The curves visually converge as the mesh refines. S11 shows the largest spread — expected, since it's a return-loss trace with a deep null that moves in frequency as the mesh changes (see §5 for why this makes raw dB deltas misleading).
 
@@ -128,13 +128,13 @@ This view shows clean, monotonic convergence toward the 1 µm result as the unif
 ## 7. Where everything lives
 
 ```
-test_data/mesh_convergence_D-band_balun/
+more_examples/mesh_convergence/mesh_convergence_D-band_balun/
+├── mesh_convergence_report.md                      # this report
 ├── palace_balun_mesh5.py … palace_balun_mesh1.py   # uniform mesh model scripts
 ├── palace_balun_amr5.py                            # AMR model script
 ├── palace_model/palace_balun_<name>_data/           # generated mesh/config + full Palace output
 │     (config.json, .msh, palace.json, port-S.csv, error-indicators.csv, ...)
 └── results/
-    ├── mesh_convergence_report.md                  # this report
     ├── delta_S_table.csv                           # §5a
     ├── delta_S_vs_finest.csv                       # §5b
     ├── analyze_convergence.py                      # regenerates the CSVs/plots above
@@ -149,4 +149,4 @@ test_data/mesh_convergence_D-band_balun/
           amr5_convergence.png
 ```
 
-All `.s3p` files are de-embedded (port parasitic inductance removed) unless suffixed `_raw`. Re-run `python results/analyze_convergence.py` from `test_data/mesh_convergence_D-band_balun/` (in the `d:\venv\palace` venv) any time to regenerate the tables and plots from the archived `.snp` files.
+All `.s3p` files are de-embedded (port parasitic inductance removed) unless suffixed `_raw`. Re-run `python results/analyze_convergence.py` from `more_examples/mesh_convergence/mesh_convergence_D-band_balun/` (in the `d:\venv\palace` venv) any time to regenerate the tables and plots from the archived `.snp` files.
