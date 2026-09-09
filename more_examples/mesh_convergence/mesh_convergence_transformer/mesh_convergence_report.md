@@ -1,6 +1,7 @@
 # Mesh Convergence Study: Transformer_IMN (IHP SG13G2)
 
 - **Model:** `Transformer_IMN_ports.gds`, stackup `SG13G2_200um.xml`
+- **Design target:** 30 GHz. This test structure is the transformer coil pair only — it does **not** include the MIM capacitors that the real matching network uses to compensate the transformer's imaginary part, so its raw S-parameters away from 30 GHz (and any real-load impedance derived from them) are not representative of the final circuit.
 - **Solver:** AWS Palace (FEM), order 2, ABC boundaries, 50 µm air margin
 - **Sweep:** 0–200 GHz (auto-shifted to 0.01 GHz start), 1 GHz step, Palace's PROM-based adaptive frequency sweep
 - **Ports:** 5 lumped via ports — 1/2 = primary +/- (Metal3→TopMetal1), 3 = primary center tap (Metal3→Metal5), 4/5 = secondary +/- (Metal3→TopMetal2), all Z0 = 50 Ω
@@ -65,9 +66,9 @@ Sdd21 = 0.5 * (S31 - S32 - S41 + S42)   # primary -> secondary differential tran
 Sdd22 = 0.5 * (S33 - S34 - S43 + S44)   # secondary differential return loss
 ```
 
-Since every port uses `port_Z0=50.0` (real, equal), this `bd/ad` ratio is exactly the standard mixed-mode S-parameter, referenced to a **100 Ω differential source/load impedance** (2×50 Ω) — the same 100 Ω reference used explicitly in §7's `Zin,diff` calculation. (The `√2` factor in the formal `ad=(a1-a2)/√2`, `bd=(b1-b2)/√2` definition cancels in the `bd/ad` ratio, so it's omitted above without changing the result or its reference impedance.)
+Since every port uses `port_Z0=50.0` (real, equal), this `bd/ad` ratio is exactly the standard mixed-mode S-parameter, referenced to a **100 Ω differential source/load impedance** (2×50 Ω). (The `√2` factor in the formal `ad=(a1-a2)/√2`, `bd=(b1-b2)/√2` definition cancels in the `bd/ad` ratio, so it's omitted above without changing the result or its reference impedance.)
 
-**Design frequency:** determined automatically as the center of the minimum-insertion-loss band (the −3 dB band around peak |Sdd21|) from the finest (1 µm) mesh result, rounded to the nearest 10 GHz → **80 GHz** (peak coupling itself is at 55 GHz, ≈ −3.0 dB — near-ideal for a 1:1 coupled transformer — but the −3dB-down band is asymmetric, spanning 17–136 GHz, so its center lands at 80 GHz).
+**Design frequency: 30 GHz** (this transformer's actual application target — not derived from the simulated response). At 30 GHz (finest, 1 µm mesh): Sdd11 = −3.6 dB, Sdd21 = −3.7 dB, Sdd22 = −3.6 dB — none of the three are anywhere near a good match. That's expected here, not a defect in the structure: this test case is the bare coil pair with no compensating MIM capacitors, and §7 explains why no real-load figure of merit is reported from it.
 
 ![Sdd11 magnitude and phase vs. mesh](results/plots/sdd11_convergence.png)
 ![Sdd21 magnitude and phase vs. mesh](results/plots/sdd21_convergence.png)
@@ -77,43 +78,43 @@ All five traces (4 uniform meshes + AMR final) are visually indistinguishable in
 
 ## 5. Delta-S tables
 
-**Metric:** `Max|ΔS|` is the standard HFSS-style convergence metric — the maximum **linear** complex-magnitude difference over the common frequency band, computed over 1–200 GHz (the two synthetic sub-1GHz points that gds2palace injects to replace a requested DC/0Hz point are excluded from all delta-S calculations and tables — they aren't real solved frequencies of interest, same convention used in the balun study and by `palace_summary.py`'s AMR iterations). The `|dS_dB|` columns are a secondary, intuitive readout at three specific frequencies: the two sweep edges (1 GHz, 200 GHz) and the 80 GHz design frequency (§4). Tables are grouped by parameter first, then by mesh comparison.
+**Metric:** `Max|ΔS|` is the standard HFSS-style convergence metric — the maximum **linear** complex-magnitude difference over the common frequency band, computed over 1–200 GHz (the two synthetic sub-1GHz points that gds2palace injects to replace a requested DC/0Hz point are excluded from all delta-S calculations and tables — they aren't real solved frequencies of interest, same convention used in the balun study and by `palace_summary.py`'s AMR iterations). The `|dS_dB|` columns are a secondary, intuitive readout at three specific frequencies: the two sweep edges (1 GHz, 200 GHz) and the 30 GHz design frequency (§4). Tables are grouped by parameter first, then by mesh comparison.
 
 ### 5a. Successive mesh steps
 
-| Param | Comparison | Max\|ΔS\| (linear) | \|ΔS\|@1GHz (dB) | \|ΔS\|@80GHz (dB) | \|ΔS\|@200GHz (dB) |
+| Param | Comparison | Max\|ΔS\| (linear) | \|ΔS\|@1GHz (dB) | \|ΔS\|@30GHz (dB) | \|ΔS\|@200GHz (dB) |
 |---|---|---:|---:|---:|---:|
-| Sdd11 | 4→3 µm | 0.0156 | 0.0002 | 0.101 | 0.009 |
-| Sdd11 | 3→2 µm | 0.0352 | 0.0067 | 0.127 | 0.015 |
-| Sdd11 | 2→1 µm | 0.0342 | 0.0002 | 0.106 | 0.017 |
-| Sdd11 | 1µm→AMR final | 0.0283 | 0.0015 | 0.088 | 0.024 |
-| Sdd21 | 4→3 µm | 0.0091 | 0.0049 | 0.050 | 0.075 |
-| Sdd21 | 3→2 µm | 0.0132 | 0.0604 | 0.067 | 0.111 |
-| Sdd21 | 2→1 µm | 0.0130 | 0.0003 | 0.057 | 0.103 |
-| Sdd21 | 1µm→AMR final | 0.0114 | 0.0173 | 0.035 | 0.184 |
-| Sdd22 | 4→3 µm | 0.0194 | 0.0005 | 0.085 | 0.006 |
-| Sdd22 | 3→2 µm | 0.0188 | 0.0042 | 0.113 | 0.002 |
-| Sdd22 | 2→1 µm | 0.0160 | 0.0005 | 0.094 | 0.011 |
-| Sdd22 | 1µm→AMR final | 0.0172 | 0.0014 | 0.078 | 0.016 |
+| Sdd11 | 4→3 µm | 0.0156 | 0.0002 | 0.040 | 0.009 |
+| Sdd11 | 3→2 µm | 0.0352 | 0.0067 | 0.050 | 0.015 |
+| Sdd11 | 2→1 µm | 0.0342 | 0.0002 | 0.045 | 0.017 |
+| Sdd11 | 1µm→AMR final | 0.0283 | 0.0015 | 0.034 | 0.024 |
+| Sdd21 | 4→3 µm | 0.0091 | 0.0049 | 0.029 | 0.075 |
+| Sdd21 | 3→2 µm | 0.0132 | 0.0604 | 0.037 | 0.111 |
+| Sdd21 | 2→1 µm | 0.0130 | 0.0003 | 0.034 | 0.103 |
+| Sdd21 | 1µm→AMR final | 0.0114 | 0.0173 | 0.008 | 0.184 |
+| Sdd22 | 4→3 µm | 0.0194 | 0.0005 | 0.041 | 0.006 |
+| Sdd22 | 3→2 µm | 0.0188 | 0.0042 | 0.052 | 0.002 |
+| Sdd22 | 2→1 µm | 0.0160 | 0.0005 | 0.045 | 0.011 |
+| Sdd22 | 1µm→AMR final | 0.0172 | 0.0014 | 0.035 | 0.016 |
 
 All linear Max\|ΔS\| values stay in a tight 0.009–0.035 band across every comparison and every parameter — no null-crossing artifacts here (unlike the balun's S11), since none of Sdd11/Sdd21/Sdd22 dips to a deep null in this band.
 
 ### 5b. Every mesh vs. the finest uniform mesh (1 µm) as reference
 
-| Param | Mesh | Max\|ΔS\| vs. 1 µm (linear) | \|ΔS\|@1GHz (dB) | \|ΔS\|@80GHz (dB) | \|ΔS\|@200GHz (dB) |
+| Param | Mesh | Max\|ΔS\| vs. 1 µm (linear) | \|ΔS\|@1GHz (dB) | \|ΔS\|@30GHz (dB) | \|ΔS\|@200GHz (dB) |
 |---|---|---:|---:|---:|---:|
-| Sdd11 | 4 µm | 0.0849 | 0.0067 | 0.333 | 0.041 |
-| Sdd11 | 3 µm | 0.0693 | 0.0069 | 0.232 | 0.032 |
-| Sdd11 | 2 µm | 0.0342 | 0.0002 | 0.106 | 0.017 |
-| Sdd11 | AMR final | 0.0283 | 0.0015 | 0.088 | 0.024 |
-| Sdd21 | 4 µm | 0.0352 | 0.0552 | 0.174 | 0.289 |
-| Sdd21 | 3 µm | 0.0261 | 0.0601 | 0.124 | 0.214 |
-| Sdd21 | 2 µm | 0.0130 | 0.0003 | 0.057 | 0.103 |
-| Sdd21 | AMR final | 0.0114 | 0.0173 | 0.035 | 0.184 |
-| Sdd22 | 4 µm | 0.0542 | 0.0053 | 0.292 | 0.020 |
-| Sdd22 | 3 µm | 0.0348 | 0.0048 | 0.207 | 0.013 |
-| Sdd22 | 2 µm | 0.0160 | 0.0005 | 0.094 | 0.011 |
-| Sdd22 | AMR final | 0.0172 | 0.0014 | 0.078 | 0.016 |
+| Sdd11 | 4 µm | 0.0849 | 0.0067 | 0.135 | 0.041 |
+| Sdd11 | 3 µm | 0.0693 | 0.0069 | 0.095 | 0.032 |
+| Sdd11 | 2 µm | 0.0342 | 0.0002 | 0.045 | 0.017 |
+| Sdd11 | AMR final | 0.0283 | 0.0015 | 0.034 | 0.024 |
+| Sdd21 | 4 µm | 0.0352 | 0.0552 | 0.100 | 0.289 |
+| Sdd21 | 3 µm | 0.0261 | 0.0601 | 0.071 | 0.214 |
+| Sdd21 | 2 µm | 0.0130 | 0.0003 | 0.034 | 0.103 |
+| Sdd21 | AMR final | 0.0114 | 0.0173 | 0.008 | 0.184 |
+| Sdd22 | 4 µm | 0.0542 | 0.0053 | 0.138 | 0.020 |
+| Sdd22 | 3 µm | 0.0348 | 0.0048 | 0.096 | 0.013 |
+| Sdd22 | 2 µm | 0.0160 | 0.0005 | 0.045 | 0.011 |
+| Sdd22 | AMR final | 0.0172 | 0.0014 | 0.035 | 0.016 |
 
 Clean, monotonic convergence toward the 1 µm result as the uniform mesh refines (Sdd11: 0.085→0.069→0.034; Sdd21: 0.035→0.026→0.013; Sdd22: 0.054→0.035→0.016). The AMR final result sits at or slightly better than the 2 µm uniform mesh on Sdd11/Sdd21, and about the same on Sdd22 — for roughly **15× the runtime and 6× the RAM** of the 2 µm uniform run (§6).
 
@@ -125,29 +126,9 @@ Clean, monotonic convergence toward the 1 µm result as the uniform mesh refines
 - **Practical recommendation for this transformer**: use the 2 µm uniform mesh with the Metal3 override, as in the working template. Skip AMR for this geometry unless a specific concern justifies it — and if used, cap it at 2 iterations, not the full requested budget.
 - **The 5 µm mesh-quality crash (§1) is worth a closer look** if a coarser starting point is ever needed (e.g. for a faster AMR start) — it likely traces to one specific small feature (a via or the center-tap strap) that needs local mesh control independent of the global `refined_cellsize`.
 
-## 7. Differential input impedance under a real load
+## 7. Why there is no "real load" / floating-impedance analysis here
 
-The mixed-mode `Sdd11` in §4–5 implicitly assumes ports 4 and 5 are each terminated individually to ground at 50 Ω (the standard Bockelman–Eisenstadt convention) — not necessarily the same physical scenario as a real floating differential resistor placed directly across the secondary. This section checks that directly by reducing the full 5-port Z-matrix under an explicit floating-load constraint, rather than assuming the two give the same answer.
-
-**Method:** starting from the full 5-port Z-matrix (frequency-domain, no reference-impedance dependence once converted from S), port 3 (primary center tap) is eliminated exactly via a short-circuit constraint (`V3=0`, AC-grounded per the actual application — confirmed this doesn't materially change the result vs. other center-tap treatments, see below). The resulting 4-port Z-matrix (ports 1,2,4,5) is then reduced analytically: a floating differential load `R_load = 100 Ω` (2×50 Ω — the natural differential impedance for two ports each individually referenced to 50 Ω, matching the `Z_DIFF_REF` used for `Sdd11` in §4) is imposed across the secondary (4,5), and a floating differential drive across the primary (1,2), giving the classic reflected-impedance formula applied to the differential-mode-equivalent 2-port:
-
-```
-Zin,diff = Zaa - Zab*Zba / (Zbb + R_load)
-```
-
-where `Zaa/Zab/Zba/Zbb` are antisymmetric combinations of the 4×4 Z-matrix across each port pair (see `differential_input_impedance.py` for the full derivation; `Zab≈Zba` to ~1e-10 confirms reciprocity and validates the extraction).
-
-**Center-tap sensitivity check:** port 3 couples almost identically to ports 1 and 2 (`Z13≈Z23` to within a few percent across the band) — i.e. the center tap sits at a near-perfect symmetry point. Since `Zin,diff` only depends on the *antisymmetric* combination of ports 1,2, this symmetric coupling to port 3 cancels out almost entirely: **the result is nearly independent of how the center tap is terminated** (open, 50 Ω, or AC-grounded all agree to within a few ohms). This is expected for a symmetric center-tapped coil (a virtual ground for differential excitation) and is a good self-consistency check on the calculation.
-
-![Differential input impedance vs. frequency](results/plots/zin_diff_primary_vs_freq.png)
-
-**A sharp parallel resonance appears around 97–98 GHz**, where `Re(Zin,diff)` peaks at 466 Ω (4 µm mesh) rising to 507 Ω (1 µm) and 520 Ω (AMR final) — a real but modest mesh sensitivity, all within about 10% of each other — with the reactance swinging from about +200 Ω to −300 Ω right through it. Away from that resonance the impedance is small and reactive — near-short at low frequency, capacitive above ~120 GHz. **There is essentially no frequency in this band where the primary presents a clean match to a floating differential 100 Ω source** — the poor matching is a genuine characteristic of this transformer as simulated.
-
-![Differential Smith chart: true floating-load Zin vs. mixed-mode Sdd11-implied Zin](results/plots/zin_diff_smith.png)
-
-**The floating-load `Zin,diff` and the mixed-mode `Sdd11`-implied impedance agree closely across the entire band** — e.g. at 55 GHz, 98.32+146.98j Ω (true floating load) vs. 98.36+146.98j Ω (`Sdd11`-implied), and the two Smith-chart panels above are visually indistinguishable. This makes sense for a symmetric structure: the center-tap sensitivity check above already showed the antisymmetric primary response barely depends on how port 3 is terminated, and once both quantities are referenced to the same 100 Ω differential impedance, the individual-50-Ω-termination convention behind `Sdd11` and a real floating 100 Ω load turn out to be nearly equivalent views of the same physics here. **Practical takeaway: for this transformer, the mixed-mode `Sdd11` already computed in §4 is a good proxy for the real floating-load input impedance** — the more involved floating-load Z-matrix reduction in this section serves mainly as an independent cross-check, not as a materially different design number.
-
-The floating-load and mixed-mode-implied impedances trace similar overall arcs (both show poor matching throughout), but diverge meaningfully at specific frequencies — e.g. at 55 GHz (near the Sdd21 coupling peak), 61+j158 Ω (true, floating load) vs. 98+j147 Ω (Sdd11-implied) — a 37 Ω real-part difference. **If designing a matching network for this transformer, use the true `Zin,diff` (floating-load) curve, not the mixed-mode `Sdd11`** — they represent different physical termination scenarios and only agree well away from the resonance.
+An earlier version of this report reduced the 5-port Z-matrix under a floating 100 Ω differential load on the secondary, to derive `Zin,diff` at the primary and compare it against the mixed-mode `Sdd11` from §4. That analysis has been removed: this test structure is the transformer coil pair only, at its 30 GHz design target — it does not include the MIM capacitors that the actual matching network uses to compensate the transformer's imaginary part. A bare-coil floating-load impedance (or any "how well does this match a real load" claim built on it) is therefore not representative of the real circuit at any frequency, including 30 GHz, and reporting it invites the wrong conclusion. The mixed-mode S-parameters in §4 remain valid as EM characterization of the coil pair itself (referenced to the ports' own 50 Ω, not a claim about real-load matching), and are the right basis for feeding into a separate matching-network (MIM cap) design step.
 
 ## 8. Where everything lives
 
@@ -163,14 +144,12 @@ more_examples/mesh_convergence/mesh_convergence_transformer/
     ├── delta_S_vs_finest.csv                    # §5b
     ├── analyze_convergence.py                   # regenerates the CSVs/plots above (mixed-mode formulas, design-freq detection)
     ├── render_labeled_layout.py                 # regenerates the labeled layout picture (§0)
-    ├── differential_input_impedance.py          # regenerates §7 (Zin,diff under a real floating load, port3 short-circuit elimination)
     ├── snp/                                     # de-embedded (and raw) 5-port Touchstone files
     │     transformer_mesh4um.s5p … transformer_mesh1um.s5p
     │     transformer_amr3_iter1.s5p, transformer_amr3_iter2.s5p, transformer_amr3_final.s5p
     │     (each also has a _raw.s5p sibling without port de-embedding)
     └── plots/
           transformer_layout.png, transformer_layout_labeled.png   # §0
-          zin_diff_primary_vs_freq.png, zin_diff_smith.png          # §7
           sdd11_convergence.png, sdd21_convergence.png, sdd22_convergence.png
           amr3_convergence.png
 ```

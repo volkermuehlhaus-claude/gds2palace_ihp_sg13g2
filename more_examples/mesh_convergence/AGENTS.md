@@ -4,10 +4,12 @@ This document is for an AI coding agent asked to run a mesh convergence
 study with gds2palace — i.e. "how fine does the mesh need to be for this
 layout, and is adaptive mesh refinement (AMR) worth it?" — and who has not
 necessarily worked with this repo before. It assumes no prior gds2palace
-knowledge and walks through the method used to produce the three studies
+knowledge and walks through the method used to produce the five studies
 in this folder ([`mesh_convergence_inductor/`](mesh_convergence_inductor/),
 [`mesh_convergence_transformer/`](mesh_convergence_transformer/),
-[`mesh_convergence_D-band_balun/`](mesh_convergence_D-band_balun/)), so you
+[`mesh_convergence_D-band_balun/`](mesh_convergence_D-band_balun/),
+[`mesh_convergence_balun2x1/`](mesh_convergence_balun2x1/),
+[`mesh_convergence_balun_mim/`](mesh_convergence_balun_mim/)), so you
 can reproduce the same kind of study on a new layout. Read [`README.md`](README.md)
 in this folder first for the end-user-facing summary of *what* we found;
 this document is about *how* to produce more studies like it.
@@ -21,7 +23,7 @@ this document is about *how* to produce more studies like it.
   consumes. Start with the [top-level README](../../README.md) for the full
   picture.
 - **A model script** is a short Python script (see any `palace_*.py` file
-  in the three study folders for real examples) that: sets a `settings`
+  in the study folders for real examples) that: sets a `settings`
   dict (mesh cell size, frequency sweep, margins, FEM order, ...), defines
   `simulation_ports` (which GDS marker layers are ports, and which metal
   layers they connect), reads the stackup XML and the GDS, then calls
@@ -53,14 +55,23 @@ this document is about *how* to produce more studies like it.
   also render the iteration-vs-error convergence chart used in every study
   report here (`amr*_convergence.png`). Use this tool; don't hand-parse
   `palace.json` yourself unless you need a field it doesn't already expose.
-- **The three existing studies are worked templates.** Before writing
+- **The five existing studies are worked templates.** Before writing
   anything from scratch, look at the model scripts, `results/*.py`
-  analysis scripts, and `mesh_convergence_report.md` in whichever of the
-  three studies is structurally closest to your new layout (a single coil
-  → `mesh_convergence_inductor/`; a multi-port coupled structure →
-  `mesh_convergence_transformer/`; a tightly-coupled mm-wave structure →
-  `mesh_convergence_D-band_balun/`). Copying and adapting one of these is
-  almost always faster and less error-prone than starting blank.
+  analysis scripts, and `mesh_convergence_report.md` in whichever study is
+  structurally closest to your new layout:
+  - a single coil → `mesh_convergence_inductor/`
+  - a multi-port coupled structure with a center tap → `mesh_convergence_transformer/`
+  - a tightly-coupled mm-wave structure → `mesh_convergence_D-band_balun/`
+  - a differential structure with an **asymmetric turns ratio** (unequal
+    primary/secondary reference impedances, e.g. 200 Ω : 50 Ω) →
+    `mesh_convergence_balun2x1/`
+  - a structure mixing a **single-ended port with a differential pair**
+    (each at its own true impedance), a layer needing a fixed mesh size
+    independent of the global sweep, or GDS-labeled component values
+    (e.g. MIM caps) worth an independent EM check → `mesh_convergence_balun_mim/`
+
+  Copying and adapting one of these is almost always faster and less
+  error-prone than starting blank.
 
 ## 1. What a mesh convergence study is actually answering
 
@@ -76,10 +87,10 @@ practical, not academic:
 - Is FEM order 1 an acceptable shortcut for a quick look, or does it
   introduce an error that order-1 mesh refinement can't fix?
 
-There's no universal answer — the three existing studies reached
-different conclusions about AMR's value specifically *because* the
-answer depends on the geometry. Don't import a conclusion from one study
-into a new one; rerun the comparison.
+There's no universal answer — the existing studies reached different
+conclusions about AMR's value specifically *because* the answer depends
+on the geometry. Don't import a conclusion from one study into a new one;
+rerun the comparison.
 
 ## 2. Step-by-step method
 
@@ -149,7 +160,7 @@ gds_viewer's colors."
 
 ### 2.2 Decide what to sweep — and ask the user about anything design-specific
 
-Reasonable defaults, confirmed against the three existing studies:
+Reasonable defaults, confirmed against the existing studies:
 
 - **Uniform mesh sweep:** several cell sizes bracketing the smallest
   measured feature, `adaptive_mesh_iterations=0`, FEM order 2 (Palace's
@@ -166,14 +177,44 @@ Reasonable defaults, confirmed against the three existing studies:
   comparison. Order 1 is dramatically faster but converges to a
   measurably different answer than order 2 regardless of mesh refinement
   — that's expected (a basis-function truncation error, not a
-  discretization error) and worth stating plainly if you find it.
+  discretization error) and worth stating plainly if you find it. Don't
+  assume this offset behaves the same way across structures, either: the
+  inductor study found a roughly mesh-independent constant offset, while
+  the balun2x1 study found the order-1 error shrinks (without fully
+  closing) as the mesh refines — check both, don't reuse a prior verdict.
+- **Per-layer mesh overrides, if one layer needs a different cell size
+  than the global sweep.** `settings['refined_cellsize_override'] =
+  [['LayerName', value_um], ...]` (see `util_simulation_setup.py`) pins
+  specific metal layers to a fixed `refined_cellsize` independent of
+  whatever the global sweep varies — used in the balun_mim study to keep
+  a wide ground/reference layer at a coarse fixed size while the sweep
+  refines everything else, so the sweep isn't paying to over-refine a
+  layer that doesn't need it.
+- **Via-array merging**, if the layout has dense via arrays (e.g. under a
+  MIM capacitor): `settings['merge_polygon_size']` controls how close
+  polygons need to be before gds2palace merges them into one. Too small
+  and each individual via becomes its own tiny mesh feature (expensive,
+  no accuracy benefit); too large and it can accidentally merge two
+  physically separate via arrays into one. Measure the actual via pitch
+  and the minimum gap between separate arrays first (same KLayout
+  `Region#sized`/merge-and-compare technique as §2.1's trace/gap
+  measurement, just applied at a few candidate merge distances to see
+  where the polygon count jumps) and pick a value with margin on both
+  sides — see the balun_mim study for a worked example.
 
 **Don't guess the frequency sweep, or assume Palace's default remote
 execution setup.** These are the two things to actually ask the user
 about before generating anything:
 
 - Frequency range/step — this is design intent (what band the structure
-  is used in), not something inferable from the GDS.
+  is used in), not something inferable from the GDS. This includes any
+  single **design/eval frequency** used to pick specific-frequency columns
+  in the delta-S tables (§2.6): ask for the actual number rather than
+  auto-deriving one from the simulated response (e.g. the center of the
+  peak-coupling band) — the transformer study originally did the latter
+  and landed on a frequency nowhere near the structure's real 30 GHz
+  target, which also masked the fact that a bare (uncompensated) coil
+  pair doesn't match well at its actual operating frequency either.
 - How they run Palace. It's Linux-only; a Windows workstation generates
   models but doesn't solve them (see the [top-level README](../../README.md)'s
   platform notes). Common patterns: a remote Linux host reachable over
@@ -266,24 +307,103 @@ generated filename). Then:
   band between two variants (the standard HFSS-style convergence metric),
   reported both between successive mesh steps and against the finest mesh
   as a fixed reference. [`analyze_convergence.py`](mesh_convergence_inductor/results/analyze_convergence.py)
-  (or the same file in the other two studies) is a direct template; adapt
-  the port count / mixed-mode
-  reduction to match the new structure (a plain 2-port needs none, e.g.
-  the inductor study; a differential-pair structure needs the classic
-  Bockelman-Eisenstadt reduction, e.g. the transformer study — derive
-  those formulas directly rather than relying on a library's mixed-mode
-  conversion if there's any ambiguity in port-pairing order).
+  (or the same file in the other studies) is a direct template; adapt the
+  port count / mixed-mode reduction to match the new structure (a plain
+  2-port needs none, e.g. the inductor study; a differential-pair
+  structure needs a mixed-mode reduction, e.g. the transformer/balun2x1/
+  balun_mim studies).
+- **Decide raw vs. de-embedded S-parameters, and document the choice.**
+  `combine_extend_snp.py` writes both a raw Touchstone and a
+  de-embedded one (port parasitic inductance cascaded out). Either is a
+  legitimate choice, but pick one per study and say so in the report
+  (§2.7) — don't mix them across sections of the same report, and don't
+  assume de-embedded is always "more correct" for a mesh-convergence
+  comparison; the balun_mim study uses raw throughout because it's the
+  more direct, reproducible quantity to track mesh-to-mesh.
+- **Mixed-mode reduction: get the reference-impedance convention right,
+  not just the port pairing.** There are two different, non-interchangeable
+  definitions of a differential pair's self-impedance term depending on
+  how "differential current" is defined:
+  - The plain "engineering" convention (`Zdiff = Vdiff/I`, with `I` the
+    actual current in one leg, driven as `I_a=-I_b`) — this is what a
+    "100 Ω differential pair" means in RF/PCB design, and the convention
+    used (and cross-validated against an independent ADS simulation) in
+    the transformer/balun2x1/balun_mim studies: `Zbb = Z_ii-Z_ij-Z_ji+Z_jj`
+    with **no** extra factor.
+  - The Bockelman-Eisenstadt power-normalized convention
+    (`Idm=(I_a-I_b)/sqrt(2)`), whose own `Zbb` term comes out to **exactly
+    half** of the engineering value.
+
+  These are easy to mix up silently: reusing a `1/sqrt(2)`-normalized
+  cross term or a `/2`-normalized self term from a B&E-style derivation,
+  then plugging it into the general unequal-impedance Z→S formula
+  alongside an engineering-convention reference impedance (e.g. `Z02=100`)
+  produces a plausible-looking but wrong result — it silently imposes a
+  termination of `2×Z02`, not `Z02`. This exact bug was found and fixed
+  in the balun_mim study (see that study's `analyze_baseline.py`
+  docstring for the full derivation, and the report's §3 for the
+  before/after numbers) — when a port set mixes single-ended and
+  differential-pair ports (not two full differential pairs like the
+  transformer/balun2x1 studies), derive the reduced 2-port from scratch
+  by imposing the actual current constraint (`I_a=-I_b` on the pair, `I`
+  free on the single-ended port) on the full Z-matrix rather than
+  adapting a formula from a different port topology by pattern-matching.
+  Sanity-check any new derivation the same way this repo already does:
+  confirm `Zab≈Zba` (reciprocity), and where possible reduce to a known
+  formula in a limiting case (e.g. setting all reference impedances equal
+  should reproduce the plain equal-impedance Bockelman-Eisenstadt result).
 - **Structure-specific derived quantities**, if applicable. For an
   inductor: differential impedance `Zdiff = Z11-Z12-Z21+Z22` from the
   2-port Z-matrix, then `L = Im(Zdiff)/ω`, `Q = Im(Zdiff)/Re(Zdiff)`,
   `R = Re(Zdiff)` (this is the same method an external `plot_inductor.py`
   utility uses, reimplemented directly in `mesh_convergence_inductor/results/plot_inductor_convergence.py`
-  rather than depending on an external script). For a transformer/coupled
-  structure, mixed-mode S-parameters and/or the real input impedance
-  under a specific load — see the transformer study's
-  [`differential_input_impedance.py`](mesh_convergence_transformer/results/differential_input_impedance.py)
-  for a worked example, including how to eliminate a center-tap port
-  algebraically before reducing to a differential pair.
+  rather than depending on an external script). For a differential
+  structure, amplitude/phase imbalance between the two differential
+  outputs is a useful extra check: renormalize per-port with
+  `skrf.Network.renormalize(z_new)` to each port's true impedance, then
+  compare `|S_i1|` vs. `|S_j1|` directly; for the phase difference,
+  `np.unwrap` the phase of the ratio along frequency and shift by a whole
+  number of 360° turns to sit near the physically expected value (e.g.
+  180° for two antiphase differential outputs) — don't plot a raw phase
+  difference, it produces a spurious jump every time either phase crosses
+  the ±180° branch cut even when the physical quantity is smooth (see
+  balun_mim's `analyze_convergence.py`).
+- **Don't report a "real load" / floating-impedance result for a
+  structure that lacks its compensating components.** A transformer or
+  balun's imaginary part is normally compensated by matching components
+  (e.g. MIM capacitors) in the real circuit; a bare-coil (or bare-coupled-
+  line) test structure without them will not present a realistic
+  impedance to any real load at any frequency, including the design
+  frequency. Deriving a floating-load `Zin` from the bare structure's
+  Z-matrix and reporting it (or comparing it against mixed-mode `Sdd11`)
+  invites the reader to draw a real-circuit-performance conclusion the
+  simulation can't support. The transformer and balun2x1 studies
+  originally included this analysis and later had it removed for exactly
+  this reason (see those reports' "why there is no real load analysis"
+  section) — if the model doesn't include the compensation network, stick
+  to reporting the bare structure's mixed-mode S-parameters at its own
+  port reference impedances, not a real-load-implied number.
+- **Verifying a labeled component value against its EM simulation**, if
+  the GDS has a component (e.g. a MIM cap) with its nominal value in a
+  text layer: build a small standalone 1-port test structure isolating
+  just that component (a lumped via port bridging its two terminals
+  directly), extract the value from the 1-port Y-parameter (e.g.
+  `C = Im(Y11)/(2*pi*f)` for a capacitor), and compare against the
+  nominal value at a couple of frequencies (agreement across frequency
+  confirms it's a real physical quantity, not solver noise). Expect the
+  EM-simulated value to differ somewhat from a compact-model nominal
+  value — routing parasitics between the port and the component's actual
+  footprint are a real, physical contribution the compact model doesn't
+  include, not necessarily an error; check whether refining the mesh
+  closes some of the gap before concluding it's parasitic rather than
+  numerical (see balun_mim's `verify_mim_capacitance.py` and its
+  report's MIM capacitor verification section for a worked example,
+  including extracting the nominal value from GDS text labels via a
+  KLayout `RecursiveShapeIterator` — watch for the gotcha that
+  `shape.text_trans.disp` returns a `Vector`, and `Trans * Vector` only
+  applies rotation/mirroring, not translation; wrap it in
+  `RBA::Point.new(...)` before the transform to get the correct absolute
+  position).
 - **AMR convergence chart:** just run `python ../../scripts/palace_summary.py
   <path to the AMR _data dir> --plot` — it reads `palace.json` from every
   iteration and the top-level run, and writes `convergence.png` for you.
@@ -295,11 +415,15 @@ generated filename). Then:
 
 ### 2.7 Write the report
 
-Match the structure used by the three existing reports (each one's
-opening `mesh_convergence_report.md` is a directly readable template):
+Match the structure used by the existing reports (each one's opening
+`mesh_convergence_report.md` is a directly readable template):
 
 1. A bullet-list header: model/stackup filenames, solver + key settings,
-   frequency sweep, port definitions, execution notes.
+   frequency sweep, port definitions, execution notes. If the structure
+   has a stated design/application target (e.g. a specific frequency, or
+   whether compensation components like MIM caps are included in this
+   particular test structure), say so here — don't bury it in a later
+   section where it looks like an afterthought.
 2. **Layout** — measured dimensions (trace width, gaps, footprint, port
    layout) from §2.1, not just a description of how the picture was
    rendered.
@@ -341,6 +465,10 @@ plots, archived `.snp` files) need to be committed.
   ask the user how they run it (§2.2).
 - **[scikit-rf](https://scikit-rf.org/)** (`skrf`) — Touchstone I/O and
   all S-parameter/impedance math in the analysis scripts.
+  `Network.renormalize(z_new)` re-references individual ports to their
+  true impedance (used for per-port amplitude/phase imbalance checks,
+  §2.6) — prefer it over hand-rolled renormalization math for that case,
+  it's a vetted general-N-port implementation.
 - **[matplotlib](https://matplotlib.org/)** (`Agg` backend) — every plot.
 - **`combine_extend_snp.py` / `combine_snp`** (`../../scripts/`) — converts
   Palace's `port-S.csv` into Touchstone `.snp`, with port de-embedding.
@@ -352,12 +480,29 @@ plots, archived `.snp` files) need to be committed.
 
 Don't silently assume any of these — confirm them first:
 
-- What frequency range/step matters for this design?
+- What frequency range/step matters for this design? Is there a specific
+  design/eval frequency to highlight in the tables, and if so, what is it
+  (don't auto-derive one from the simulated response — see §2.2)?
 - What cell sizes should the uniform sweep use? (Propose a range based on
   measured feature size per §2.1, but confirm it — especially if it would
   mean many expensive runs.)
 - Should AMR be included, and with what starting mesh / iteration cap?
 - Is an FEM order 1 vs. order 2 comparison wanted?
+- If the port set includes a differential pair (or more than one): what
+  are the *true* external system impedances per port/pair (don't assume
+  the simulation's `port_Z0` — often 50 Ω on every port for solver
+  convenience — is the real intended impedance; e.g. an asymmetric turns
+  ratio implies unequal primary/secondary impedances, and a mixed single-
+  ended + differential port set has a true impedance per port *and* per
+  differential pair)?
+- Does this test structure include the components needed for it to behave
+  like the final circuit (e.g. compensation/matching capacitors)? If not,
+  don't derive or report a real-load/floating-impedance figure from it
+  (§2.6) — only the bare structure's own mixed-mode S-parameters.
+- Does the GDS have any component with a nominal value worth an
+  independent EM check (e.g. a MIM cap with its value in a text layer)?
+  If so, a small standalone 1-port verification structure (§2.6) is cheap
+  extra confidence and worth proposing even if not explicitly requested.
 - How does the user actually run Palace (remote host, WSL, local Linux),
   and is it OK to actually kick off runs now (could take anywhere from
   minutes to hours), or should scripts just be prepared for the user to

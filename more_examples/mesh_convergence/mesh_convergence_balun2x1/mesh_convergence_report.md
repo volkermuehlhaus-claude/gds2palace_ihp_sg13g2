@@ -98,23 +98,9 @@ with `Z01 = 200 Ω`, `Z02 = 50 Ω`. (Setting `Z01=Z02` reduces this to the stand
 
 The 5 µm mesh is clearly the worst point (Max|ΔS| up to 0.16 vs. the 1 µm reference) — this structure's 2 µm coupled-line gap is smaller than the 5 µm cell size itself, so that setting can't really resolve the coupling at all. 2 µm brings all three parameters within 0.01–0.03 of the 1 µm reference. The AMR final result is closer to the 1 µm reference than the 2 µm uniform mesh on every parameter. Peak `Sdd21` (finest mesh) reaches about **−1.27 dB at 34 GHz** — a well-matched, low-loss balun.
 
-## 5. Differential input impedance under a real load
+## 5. Why there is no "real load" / floating-impedance analysis here
 
-Same method as the transformer study's §7, but simpler: with no center tap here, the floating-load reduction applies directly to the native 4-port Z-matrix (no port elimination needed):
-
-```
-Zin_diff = Zaa - Zab*Zba / (Zbb + R_load)
-```
-
-with `Zaa/Zab/Zba/Zbb` the antisymmetric combinations of the 4×4 Z-matrix across each port pair (identical to §4's), and **`R_load = 50 Ω`** — the balun's actual intended secondary system impedance. (This `Zin_diff`, converted to a reflection coefficient at `Z01 = 200 Ω`, is algebraically identical to §4's `Sdd11` — the two sections present the same underlying calculation in ohms vs. dB/phase; §4 additionally covers `Sdd21`/`Sdd22`, which have no single-port impedance analog.)
-
-![Differential input impedance vs. frequency](results/plots/zin_diff_primary_vs_freq.png)
-
-A resonance appears around 33–35 GHz, where `Re(Zin,diff)` peaks at 377 Ω (5 µm) → 401 Ω (2 µm) → 408 Ω (1 µm) → 404 Ω (AMR final) — all within about 4% of each other, tighter agreement across mesh sizes than the raw Sdd11/Sdd21/Sdd22 dB view suggested. **The true floating-50 Ω-load `Zin,diff` and the naive mixed-mode-`Sdd11`-implied impedance (each secondary port individually grounded through 50 Ω — the classic Bockelman–Eisenstadt convention) clearly diverge** — e.g. 150+184j Ω vs. 213+270j Ω at 25 GHz — a genuinely different termination scenario from either §4's `Sdd11` or the true floating load.
-
-The Smith chart below views both traces through a 200 Ω reference — the balun's real intended **primary** impedance (this is purely a choice of viewing reference for an already-computed impedance value in ohms, not a recomputation):
-
-![Differential Smith chart: true floating-load Zin vs. mixed-mode Sdd11-implied Zin, viewed at 200 Ω](results/plots/zin_diff_smith.png)
+An earlier version of this report reduced the 4-port Z-matrix under a floating 50 Ω differential load on the secondary, to derive `Zin_diff` at the primary and compare it against the mixed-mode `Sdd11` from §4. That analysis has been removed: this test structure is the coupled-line balun coils only — it does not include the MIM capacitors that a real matching network would use to compensate the balun's imaginary part. A bare-coil floating-load impedance (or any "how well does this match a real load" claim built on it) is therefore not representative of the real circuit, and reporting it invites the wrong conclusion. The mixed-mode S-parameters in §4 remain valid as EM characterization of the coil pair itself (referenced to the true 200 Ω/50 Ω system impedances, not a claim about real-load matching), and are the right basis for feeding into a separate matching-network design step.
 
 ## 6. Order 1 vs. order 2 comparison
 
@@ -136,7 +122,6 @@ Order 1 is ~5.2× fewer DOF and roughly 9-11× faster than order 2 at the same m
 
 - **This structure's 2 µm coupled-line gap makes 5 µm mesh a poor choice** — Max|ΔS| up to 0.16 vs. the 1 µm reference, clearly worse than the equivalent coarse point in the transformer or balun studies (both had ≥3 µm gaps/traces relative to their coarsest mesh). **2 µm uniform mesh is the practical minimum working point** for this geometry, bringing all three Sdd parameters within 0.01–0.03 of the finest mesh at under half the 1 µm run's cost.
 - **AMR (5 µm start, 2 iterations) lands closer to the 1 µm reference than the 2 µm uniform mesh does**, on both S-parameters and the differential input impedance, without needing to already know 2 µm was a reasonable cell size — consistent with the spiral inductor study's finding, though again at higher wall-clock cost (32m 36s, 15.6 GB) than the 2 µm uniform run (11m 18s, 11.0 GB).
-- **The differential input impedance is well-converged across all mesh sizes** (peak `Re(Zin,diff)` within ~4% from 5 µm to 1 µm) even where the raw Sdd parameters showed larger spread. **The true floating-50Ω-load impedance and the naive mixed-mode-`Sdd11`-implied impedance (each port individually 50 Ω-terminated) clearly diverge here** — e.g. 150+184j Ω vs. 213+270j Ω at 25 GHz — a genuinely different termination scenario, not a convergence artifact.
 - **Order 1's error is coupled to mesh coarseness here**, unlike the spiral inductor's roughly mesh-independent offset — a reminder that these behaviors are structure-dependent and worth checking per design rather than assuming a prior study's pattern carries over.
 
 ## 8. Where everything lives
@@ -153,7 +138,6 @@ more_examples/mesh_convergence/mesh_convergence_balun2x1/
     ├── delta_S_table.csv, delta_S_vs_finest.csv       # §4a/4b (real 200/50 ohm reference)
     ├── order_comparison_table.csv                     # §6
     ├── analyze_convergence.py                         # regenerates the Sdd CSVs/plots (§4, 200/50 ohm)
-    ├── differential_input_impedance.py                # regenerates §5 (real 50 ohm secondary load)
     ├── order_comparison.py                            # regenerates §6's table/plots
     ├── render_labeled_layout.py                       # regenerates the labeled layout picture (§0)
     ├── snp/                                           # de-embedded 4-port Touchstone files
@@ -163,8 +147,7 @@ more_examples/mesh_convergence/mesh_convergence_balun2x1/
           balun2x1_layout_labeled.png                              # §0
           amr2_convergence.png                                     # §3
           sdd11_convergence.png, sdd21_convergence.png, sdd22_convergence.png  # §4 (200/50 ohm)
-          zin_diff_primary_vs_freq.png, zin_diff_smith.png          # §5 (real 50 ohm load / 200 ohm view)
           order_comparison_time_dof.png, order_comparison_sdd.png   # §6
 ```
 
-Re-run `python results/analyze_convergence.py`, `python results/differential_input_impedance.py`, and `python results/order_comparison.py` from `more_examples/mesh_convergence/mesh_convergence_balun2x1/` (in the `d:\venv\palace` venv) any time to regenerate the tables and plots from the archived `.snp`/`palace.json` files.
+Re-run `python results/analyze_convergence.py` and `python results/order_comparison.py` from `more_examples/mesh_convergence/mesh_convergence_balun2x1/` (in the `d:\venv\palace` venv) any time to regenerate the tables and plots from the archived `.snp`/`palace.json` files.

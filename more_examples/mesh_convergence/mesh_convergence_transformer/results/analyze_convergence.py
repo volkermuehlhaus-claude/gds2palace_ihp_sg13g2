@@ -53,23 +53,12 @@ AMR_ENTRY = ("amr3", "AMR (2 um start, 3 it.)", "transformer_amr3_final.s5p")
 # ports 1,2,4,5 (1-indexed) = 0,1,3,4 (0-indexed); port 3 (center tap) dropped
 KEEP_PORTS_0IDX = [0, 1, 3, 4]
 
-
-def find_design_freq_hz(freq, sdd21):
-    """Center of the minimum-insertion-loss band (peak |Sdd21|'s -3dB band),
-    rounded to the nearest 10 GHz. Determined from the finest-mesh result."""
-    mag_db = db(sdd21)
-    peak_idx = int(np.argmax(mag_db))
-    peak_db = mag_db[peak_idx]
-    above = mag_db >= (peak_db - 3.0)
-    # contiguous run of 'above' that contains peak_idx
-    lo = peak_idx
-    while lo > 0 and above[lo - 1]:
-        lo -= 1
-    hi = peak_idx
-    while hi < len(above) - 1 and above[hi + 1]:
-        hi += 1
-    center_hz = 0.5 * (freq[lo] + freq[hi])
-    return round(center_hz / 10e9) * 10e9
+# This structure's actual design target -- fixed, not derived from the
+# simulated peak-coupling band. An earlier version of this script picked the
+# eval frequency automatically from the -3dB band around peak |Sdd21| (which
+# landed on 80 GHz here); that has nothing to do with where this transformer
+# is actually used and has been replaced with the real 30 GHz target.
+DESIGN_FREQ_HZ = 30.0e9
 
 
 def delta_db_at_freq(fa, xa, fb, xb, freq_hz):
@@ -159,13 +148,9 @@ def main():
         sdd11, sdd21, sdd22 = sdd_traces(sub)
         traces[key] = (sub.frequency.f, {"Sdd11": sdd11, "Sdd21": sdd21, "Sdd22": sdd22})
 
-    # design frequency: center of the finest uniform mesh's minimum-insertion-loss
-    # (-3dB around peak |Sdd21|) band, rounded to the nearest 10 GHz
-    finest_key = loaded[-1][0]
-    finest_freq, finest_sdd21 = traces[finest_key][0], traces[finest_key][1]["Sdd21"]
-    design_freq_hz = find_design_freq_hz(finest_freq, finest_sdd21)
+    design_freq_hz = DESIGN_FREQ_HZ
     design_freq_col = f"|dS_dB| at {design_freq_hz/1e9:.0f}GHz (design freq.)"
-    print(f"Design frequency (center of min. insertion loss band, from {loaded[-1][1]}): {design_freq_hz/1e9:.0f} GHz")
+    print(f"Design frequency (fixed, actual application target): {design_freq_hz/1e9:.0f} GHz")
 
     def fmt(x):
         return f"{x:.4f}" if x is not None else "n/a"

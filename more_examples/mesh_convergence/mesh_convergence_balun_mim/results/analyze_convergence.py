@@ -261,7 +261,7 @@ def main():
         ax.plot(freq_ghz, phase_difference_centered(nw), color=colors[key], linestyle=style, label=all_labels[key])
     ax.set_xlabel("Frequency (GHz)")
     ax.set_ylabel("Phase(S21) - Phase(S31) (deg)")
-    ax.set_ylim(140, 220)
+    ax.set_ylim(177, 183)
     ax.axhline(180, color="black", linewidth=0.8, alpha=0.5)
     ax.set_title(f"Phase difference, port 2 vs. port 3 (true Z: port1={Z01:.0f} ohm, ports2/3=50 ohm each)")
     ax.grid(True, alpha=0.3)
