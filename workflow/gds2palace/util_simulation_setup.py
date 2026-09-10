@@ -1229,6 +1229,8 @@ def create_model (excite_ports, settings):
     refined_cellsize = settings['refined_cellsize']  # mesh cell size in conductor region
     meshsize_max = get_optional_setting (settings, "meshsize_max", 70)
     adaptive_mesh_iterations = get_optional_setting (settings, "adaptive_mesh_iterations", 0)
+    amr_tol = get_optional_setting (settings, "amr_tol", 1e-2)  # AMR goal: relative error tolerance
+    amr_max_dof = get_optional_setting (settings, "amr_max_dof", 2e6)  # AMR maximum number of unknowns
     save_adaptive_mesh = get_optional_setting (settings, "save_adaptive_mesh", False)
     save_gmsh_geometry =  get_optional_setting (settings, "save_gmsh_unrolled", False)
     substrate_refinement = get_optional_setting (settings, "substrate_refinement", False)
@@ -1906,12 +1908,12 @@ def create_model (excite_ports, settings):
     # model shows the fixed per-invocation overhead becoming a small fraction of total time.
     Refinement = {
         "UniformLevels": 0,
-        "Tol": 1e-2,
+        "Tol": amr_tol,
         "MaxIts": adaptive_mesh_iterations,
-        "MaxSize": 2e6,
+        "MaxSize": amr_max_dof,
         "Nonconformal": True,
         "UpdateFraction": 0.7,
-        "SaveAdaptMesh": save_adaptive_mesh        	
+        "SaveAdaptMesh": save_adaptive_mesh
     }
 
     model =  {
