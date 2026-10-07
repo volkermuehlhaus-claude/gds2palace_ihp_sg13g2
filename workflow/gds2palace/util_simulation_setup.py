@@ -3090,14 +3090,32 @@ def create_model (excite_ports, settings):
 
     if not preview_only:
         # now generate mesh
+        # 3D Delaunay can fail in boundary recovery, e.g. for a large LBE cavity or a backside
+        # sheet that covers only part of the substrate bottom; HXT handles those cases. The API
+        # default General.AbortOnError = 2 throws on that error and leaves gmsh's mesh lock set,
+        # so a retry would be skipped silently ("I'm busy!"). With 0, the failed volumes are
+        # left without elements instead, which is checked here.
+        def volumes_without_mesh ():
+            return [tag for _, tag in gmsh.model.getEntities(3)
+                    if sum(len(e) for e in gmsh.model.mesh.getElements(3, tag)[1]) == 0]
+
+        abort_on_error = gmsh.option.getNumber("General.AbortOnError")
+        gmsh.option.setNumber("General.AbortOnError", 0)
         try:
             gmsh.model.mesh.generate(3)
-        except Exception as e:
-            # 3D Delaunay can fail in boundary recovery, e.g. for a large LBE cavity or a backside
-            # sheet that covers only part of the substrate bottom. HXT handles those cases.
-            print(f'3D meshing with Delaunay failed ({e}), retrying with HXT algorithm')
-            gmsh.option.setNumber("Mesh.Algorithm3D", 10)
-            gmsh.model.mesh.generate(3)
+            if volumes_without_mesh():
+                print('3D meshing with Delaunay failed, retrying with HXT algorithm')
+                gmsh.model.mesh.clear()
+                gmsh.option.setNumber("Mesh.Algorithm3D", 10)
+                gmsh.model.mesh.generate(3)
+        finally:
+            gmsh.option.setNumber("General.AbortOnError", abort_on_error)
+
+        # never write an incomplete mesh, e.g. a surface-only mesh that Palace would read as 2D
+        unmeshed = volumes_without_mesh()
+        if unmeshed:
+            print(f'ERROR: 3D meshing failed, {len(unmeshed)} volume(s) without mesh elements.')
+            exit(1)
 
         # Save mesh
         gmsh.option.setNumber("Mesh.Binary", 0)
