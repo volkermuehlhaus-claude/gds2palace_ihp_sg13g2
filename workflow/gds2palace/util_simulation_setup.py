@@ -18,7 +18,7 @@
 
 # -*- coding: utf-8 -*-
 
-__version__ = "1.10.3"
+__version__ = "1.10.4"
 
 # solvers where settings['fill_factor_correction'] is applied (checked by setupEM)
 FILL_FACTOR_CORRECTION_SOLVERS = ("palace", "elmer", "elmer_thermal")
@@ -3090,7 +3090,14 @@ def create_model (excite_ports, settings):
 
     if not preview_only:
         # now generate mesh
-        gmsh.model.mesh.generate(3)
+        try:
+            gmsh.model.mesh.generate(3)
+        except Exception as e:
+            # 3D Delaunay can fail in boundary recovery, e.g. for a large LBE cavity or a backside
+            # sheet that covers only part of the substrate bottom. HXT handles those cases.
+            print(f'3D meshing with Delaunay failed ({e}), retrying with HXT algorithm')
+            gmsh.option.setNumber("Mesh.Algorithm3D", 10)
+            gmsh.model.mesh.generate(3)
 
         # Save mesh
         gmsh.option.setNumber("Mesh.Binary", 0)
