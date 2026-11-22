@@ -156,7 +156,7 @@ Every key **must** name a `<Variable>` already declared in the file's
   polygons only exist once `gds_reader.read_gds()` runs
   `resolve_derived_layers()` against real GDS data — don't expect derived
   layer geometry from the reader alone.
-- **`__version__`** (`"1.9.5"` at the time of writing; see the top of
+- **`__version__`** (`"1.10.0"` at the time of writing; see the top of
   `util_stackup_reader.py`) is display-only: it's
   interpolated into `check_schema_version()`'s warning text and into
   min-reader-version XML comments stamped by `stackup_writer.py`, but never

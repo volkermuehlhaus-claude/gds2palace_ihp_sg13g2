@@ -170,9 +170,10 @@ dielectric an explicit `Reference` instead of relying on file order.
 Drawn layers: metals, vias, sheet resistors, and dielectric "bricks" that are read from
 specific GDSII layer numbers instead of being implied by the dielectric stack.
 
-An optional `<Substrate Offset="..."/>` element shifts the z-position of every `<Layer>` up by
+An optional `<Substrate Offset="..."/>` element shifts the z-position of every `<Layer>` by
 a fixed amount (used e.g. to place the drawn stack on top of a backside/substrate region
-that is itself modeled with negative z). Use a positive `Offset`.
+that is itself modeled with negative z). A negative `Offset` shifts the layers down
+(stackup reader 1.10.0 and newer; before, it was ignored).
 
 | Attribute | Required | Default | Description |
 |-----------|----------|---------|--------------|
@@ -180,7 +181,7 @@ that is itself modeled with negative z). Use a positive `Offset`.
 | `Type`    | yes      | —       | `conductor`, `via`, `dielectric`, or `sheet` (see below). |
 | `Material`| yes      | —       | References a `<Material>` by name, or the reserved keyword `"PEC"` (see below). |
 | `Zmin`    | yes      | —       | Bottom z-position — absolute, or an offset from `Reference`'s edge if `Reference` is set (see below). |
-| `Zmax`    | yes      | —       | Top z-position, same absolute-vs-offset rule as `Zmin`. For a sheet, set `Type="sheet"` and write `Zmin` and `Zmax` with the same text, e.g. `Zmin="0.4" Zmax="0.4"`. |
+| `Zmax`    | yes      | —       | Top z-position, same absolute-vs-offset rule as `Zmin`. A layer with `Zmax` equal to `Zmin` is a sheet, whatever its `Type`; the numbers are compared, so `Zmin="0.4" Zmax="0.40"` is a sheet too (stackup reader 1.10.0 and newer). |
 | `Layer`   | yes      | —       | GDSII layer number. Also used as the target layer number for a [derived layer](#derivedlayers-boolean-operations-on-layers), in which case its geometry does not need to exist directly in the GDSII file. |
 | `Reference` | no     | —       | Name of another `<Dielectric>` or `<Layer>` to position this layer relative to. When set, `Zmin`/`Zmax` are reinterpreted as offsets from the resolved reference edge instead of absolute z (positive = up). Dielectric and Layer names share one namespace for this lookup, so a name must not exist as both. |
 | `ReferenceEdge` | no | `Top`   | `Top` or `Bottom` (case-insensitive). Only meaningful with `Reference` set. For a `<Dielectric>` target: its top/bottom z. For a `<Layer>` target: its `Zmax`/`Zmin`. |
@@ -242,7 +243,8 @@ regardless of file order).
 Two rules apply:
 
 - **Shared namespace**: `Reference` is looked up against `<Dielectric>` names and `<Layer>`
-  names together, so a name must not exist as both. Give every `<Layer>` a unique `Name`.
+  names together, so a name must not exist as both. Two `<Layer>`s with the same `Name` stop
+  the reader with an error (stackup reader 1.10.0 and newer).
 - **Mutual exclusivity with `<Substrate Offset="...">`**: a file must not mix
   `Reference`-based `<Layer>` positioning with a `<Substrate Offset="...">` — it would
   be ambiguous whether the offset applies before or after reference resolution. Use `Reference`
@@ -328,7 +330,9 @@ constant `ThermalConductivity`).
           ThermalConductivityTable="Si_k_vs_T" Color="01e0ff"/>
 ```
 
-List the `<Point>`s in ascending `Temperature`, as in the example.
+The reader sorts the `<Point>`s by `Temperature` (stackup reader 1.10.0 and newer), so their
+order in the file doesn't matter. Two points at the same temperature stop the reader with an
+error.
 
 ## `<Variables>`
 

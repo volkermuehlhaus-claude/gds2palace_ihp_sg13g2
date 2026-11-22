@@ -64,8 +64,13 @@
 #              anything for either side of the branch
 # 02 Oct 2026: read_substrate() stores the file name as metals_list.xml_filename (None if the
 #              list was built some other way), so solver setup errors can name the stackup file
+# 22 Nov 2026: 1.10.0: a Layer with equal Zmin and Zmax becomes a sheet when the numbers are equal,
+#              also if written differently ("0.4" and "0.40"); a negative <Substrate Offset> shifts the
+#              Layers down instead of being ignored; Table points are sorted by temperature, two points
+#              at the same temperature stop with an error; two Layers with the same Name stop with an
+#              error (Reference and target layer lookups use the name)
 
-__version__ = "1.9.5"
+__version__ = "1.10.0"
 
 import os
 import math
@@ -269,6 +274,17 @@ def _infer_literal_value (raw_value):
     return float(raw_value)
   except (TypeError, ValueError):
     return raw_value
+
+
+def _same_number (a, b):
+  """True if two attribute values are equal: as numbers when both are numbers ("0.4" and "0.40"),
+     else as text (e.g. both absent)."""
+  if a is None or b is None:
+    return a == b
+  try:
+    return float(a) == float(b)
+  except (TypeError, ValueError):
+    return a == b
 
 
 def resolve_attr (data, key, default, variables):
@@ -1239,8 +1255,9 @@ class metal_layer:
 
     zmin_attr = resolve_attr(data, "Zmin", None, variables)
     zmax_attr = resolve_attr(data, "Zmax", None, variables)
-    # force to sheet if zero thickness (resolved-value compare, same convention whether Zmin/Zmax are absolute or offsets)
-    if zmin_attr == zmax_attr:
+    # force to sheet if zero thickness (resolved-value compare, same convention whether Zmin/Zmax are absolute or offsets);
+    # compare the numbers, so "0.4" and "0.40" are equal too
+    if _same_number(zmin_attr, zmax_attr):
       self.type = "SHEET"
 
     self.is_used = False
@@ -1709,6 +1726,14 @@ class thermal_table:
             k = float(resolve_attr(point, "Value", None, variables))
             self.points.append((T, k))
 
+        # Elmer interpolates between neighbouring points, so they must be in ascending temperature
+        self.points.sort(key=lambda p: p[0])
+        temperatures = [T for T, _ in self.points]
+        repeated = sorted({T for T in temperatures if temperatures.count(T) > 1})
+        if repeated:
+            print('ERROR: <Table Name="', self.name, '"> has more than one <Point> at Temperature ', repeated)
+            exit(1)
+
 
 class thermal_tables_list(list):
     def get(self, name):
@@ -1895,6 +1920,13 @@ def parse_substrate (substrate_root, variable_overrides=None):
   for data in  substrate_root.iter("Layer"):
       metals_list.append (metal_layer(data, variables))
 
+  # layers are found by name (Reference, port and heat source target layers), so a name must be unique
+  layer_names = [metal.name for metal in metals_list.metals if metal.name is not None]
+  repeated_names = sorted({name for name in layer_names if layer_names.count(name) > 1})
+  if repeated_names:
+    print('ERROR: more than one <Layer> with the same Name in stackup file: ', repeated_names)
+    exit(1)
+
   # resolve Reference-based layers (offsets from a Dielectric or another Layer edge) into absolute zmin/zmax
   metals_list.resolve_references(dielectrics_list)
 
@@ -1922,7 +1954,7 @@ def parse_substrate (substrate_root, variable_overrides=None):
   for data in substrate_root.iter("Substrate"):
       assert data!=None
       offset = float(resolve_attr(data, "Offset", 0, variables))
-  if offset > 0:
+  if offset != 0:
     referenced_layers = metals_list.has_references()
     if referenced_layers:
       print('ERROR: <Substrate Offset="..."> cannot be combined with Reference-based Layer positioning. Layers using Reference: ', referenced_layers)
