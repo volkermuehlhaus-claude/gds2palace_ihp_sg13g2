@@ -22,7 +22,7 @@ The same two commands run on GitHub for every push and pull request (`.github/wo
 | `test_dc_point.py` | The `_dc` file of `combine_extend_snp.py`: a 0 Hz point in front of the unchanged simulated data |
 | `test_via_merge_ring.py` | Via array merging keeps a ring of vias around an opening (a guard ring) whole |
 | `test_stackup_reader.py` | Stackup reader edge cases: sheets by numeric Zmin/Zmax, negative Substrate Offset, sorted table points, unique layer names |
-| `test_elmer_order.py` | Elmer EM models warn for FEM order 3, which runs with the order-1 recipe |
+| `test_elmer_order.py` | Elmer EM models: FEM order 3 runs as order 2, with a warning |
 
 ## The example tests
 

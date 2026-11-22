@@ -789,10 +789,9 @@ should be reserved for fast exploratory sweeps where some visible error is accep
 exactly how the inductor-synthesis examples in §12 use it (`order=1` for a broad coarse sweep
 across dozens of candidates, `order=2` only for the finalists).
 
-**Elmer note**: Elmer's EM solver only supports `order` 1 or 2 — "other values fall back to the
-order-1 solver recipe" (`doc/userguide_md_format/gds2palace_workflow_userguide.md`, section "Mesh
-order and solver method"). `order=3`
-is Palace-only.
+**Elmer note**: Elmer's EM solver only supports `order` 1 or 2 (`util_elmer.write_case_and_solver_files()`
+has recipes for these two). `order=3` is Palace-only: `create_model()` changes it to 2 for an Elmer EM
+model, with a warning.
 
 ---
 

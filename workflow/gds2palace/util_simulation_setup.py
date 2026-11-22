@@ -1640,9 +1640,9 @@ def create_model (excite_ports, settings):
         filled_metals = True # solid metal volumes for thermal
         thermal_objects = settings['thermal_objects']
     elif elmer and order == 3:
-        # util_elmer has solver recipes for order 1 and 2 only, any other order gets the order-1 recipe
-        print("WARNING: Elmer EM models support FEM order 1 and 2 only. Order 3 runs with Elmer's order-1 "
-              "solver recipe. Use settings['order'] = 2 for Elmer.")
+        # util_elmer has solver recipes for order 1 and 2 only: use the closest one
+        print("WARNING: Elmer EM models support FEM order 1 and 2 only. Order 3 was requested, order 2 is used.")
+        order = 2
 
     # filled_metals means "model conductors as solid volumes" either way, but EM and
     # thermal need different registration: thermal keeps both volume AND surface (for

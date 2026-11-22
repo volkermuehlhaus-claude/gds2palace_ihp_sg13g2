@@ -17,7 +17,7 @@ gds2palace builds EM models for two solvers from the same layout, stackup and mo
 | Port walls (`'PORTWALL'`, calibrated de-embedding) | yes | **no**: the model stops with an error |
 | Excite only some ports (`voltage=0`) | yes | no: all ports are always solved (section 4) |
 | Estimated port inductance in the `_deembedded` file, `_dc` file | yes | yes (`combine_snp`) |
-| FEM order | 1, 2, 3 | 1, 2; **order 3 runs as order 1**, with a warning (section 5) |
+| FEM order | 1, 2, 3 | 1, 2; order 3 runs as order 2, with a warning (section 5) |
 | Adaptive frequency sweep | yes (default) | no: every frequency point is solved |
 | Adaptive mesh refinement (AMR) | yes | no |
 | Absorbing boundary (`'ABC'`) | second order | first order (section 6) |
@@ -78,7 +78,7 @@ Only simple lumped ports are supported: one sheet per port, a via port drawn as 
 
 ## 5. FEM order
 
-Elmer has recipes for order 1 and order 2. `order = 3`, which is valid for Palace, gets the order-1 recipe; gds2palace 0.12.1 and newer print a warning when the model is created (before, there was none). Use order 2 for Elmer results.
+Elmer has recipes for order 1 and order 2. `order = 3`, which is valid for Palace, runs as order 2, and gds2palace prints a warning when the model is created (gds2palace 0.12.1 and newer; before, order 3 got the order-1 recipe without a message). Use order 2 for Elmer results.
 
 ## 6. Absorbing boundary
 
