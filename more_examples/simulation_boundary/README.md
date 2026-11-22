@@ -101,4 +101,4 @@ simulation_boundary/
         └── plots/
 ```
 
-Run the scripts in `results/` in the `d:\venv\palace` venv to regenerate the plots and numbers from the archived Touchstone files. The measured L6n2 data is read from the L6n2 v5 study folder.
+Run the scripts in `results/` in a venv with gds2palace, scikit-rf and matplotlib to regenerate the plots and numbers from the archived Touchstone files. The measured L6n2 data is read from the L6n2 v5 study folder.

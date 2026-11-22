@@ -34,7 +34,7 @@ from gds2palace import *
 # values come from.
 #
 # The model itself is the STANDARD line_simple_viaport test structure (same GDS as
-# ../../workflow/line_simple_viaport.py / palace_line_viaport.py): a single straight
+# ../../workflow/palace_line_viaport.py, line_simple_viaport.gds): a single straight
 # trace on TopMetal2 over a solid Metal1 ground plane, with a via port at each end
 # (Metal1 -> TopMetal2). An earlier version of this example instead used 7 narrow
 # (2 um wide) lines directly on Metal1..TopMetal2 referenced to an artificial ground

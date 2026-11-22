@@ -28,7 +28,7 @@ install_palace_wsl.sh can also be run by hand inside an existing WSL/Linux termi
 
 ## Requirements
 
-**Before you run the installer script**, you need **Python 3.9+ (`python3`) installed and on your PATH.** This will be checked by the installer.
+**Before you run the installer script**, you need **Python 3.9+ installed**: the Python launcher `py`, or `python` on your PATH (tick "Add python.exe to PATH" in the python.org installer). This will be checked by the installer.
 
 It is also recommended that you have already configured a WSL environment, so that the installer script can install Palace there. 
 

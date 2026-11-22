@@ -18,6 +18,9 @@ The same two commands run on GitHub for every push and pull request (`.github/wo
 | `test_examples_model.py` | Model files of the shipped examples, with meshing (marker `examples`) |
 | `test_port_walls.py`, `test_deembedding.py` | Port walls and calibrated de-embedding |
 | `test_tube_port.py` | Via port shapes: line gives a sheet, shape with area gives a tube port; tube ports are not de-embedded |
+| `test_low_frequency_point.py` | The frequency that replaces fstart = 0: 10 MHz, higher for a very fine mesh |
+| `test_dc_point.py` | The `_dc` file of `combine_extend_snp.py`: a 0 Hz point in front of the unchanged simulated data |
+| `test_via_merge_ring.py` | Via array merging keeps a ring of vias around an opening (a guard ring) whole |
 
 ## The example tests
 
@@ -69,7 +72,8 @@ UPDATE_GOLDEN=1 python -m pytest tests -m examples
 
 For each silent failure that was fixed, one test switches the fix off (or alters the data) and
 requires the checks to fail: the lost strip (`test_checks_catch_the_lost_strip`), a via array merged
-across two lines, and a shape missing in the model (`test_examples_geometry.py`).
+across two lines, a shape missing in the model (`test_examples_geometry.py`), and model files that
+don't fit the script (`test_checks_catch_model_files_that_do_not_fit` in `test_examples_model.py`).
 
 ## Adding an example
 

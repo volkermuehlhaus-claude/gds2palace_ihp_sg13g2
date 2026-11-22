@@ -2,7 +2,7 @@
 
 Volker Mühlhaus,volker@muehlhaus.com
 ---
-Document version: 2026-11-13
+Document version: 2026-11-22
 
 ## Contents
 [What's New](#whats-new)  
@@ -120,14 +120,17 @@ python3 -m venv ~/venv/palace
 
 ### Recommended installation of gds2palace as Python module 
 
-The easiest method to install the gds2palace Python workflow is to use the preconfigured package which automatically installs all dependencies (gdstk, gmsh, scikit-rf). We activate the virtual environment and install to there:  
+The easiest method to install the gds2palace Python workflow is to use the preconfigured package which automatically installs all dependencies (gdstk, gmsh, numpy, shapely). We activate the virtual environment and install to there:  
 
 ```
 source ~/venv/palace/bin/activate
 pip install --upgrade gds2palace
+pip install scikit-rf
 ```
 
-That’s all we need to do for installing the gds2palace Python module. If you install gds2palace this way, you only need the gds2palace repository to download the examples and XML stackup files and documentation.  
+scikit-rf is not installed with gds2palace. It is needed by the scripts that postprocess the Palace results (`combine_snp`, `palace_summary.py`), so install it in the same venv.
+
+That’s all we need to do for installing the gds2palace Python module. The latest IHP stackup files ship with the package: `utilities.get_stackup_path('SG13G2_FEM_200um.xml')` returns the full path of one, and `utilities.get_stackup_path()` without an argument prints the folder and the available files. If you install gds2palace this way, you only need the gds2palace repository for the examples, the legacy stackup files and the documentation.  
 
 To run a model script using gds2palace, you then activate the venv first:
 
@@ -147,6 +150,8 @@ In this case, Python module dependencies must be installed manually:
 source ~/venv/palace/bin/activate
 pip install gdstk
 pip install gmsh
+pip install numpy
+pip install "shapely>=2.0"
 pip install scikit-rf
 ```
 
@@ -275,7 +280,7 @@ To get the full S-parameter file, all ports must be defined with non-zero voltag
 
 **SEVERAL SHAPES ON ONE PORT LAYER** : Each shape becomes one element of the same port, and the elements are in parallel (a Palace multielement lumped port; the port impedance stays the given Z0). This is useful for a terminal that is spread over several strips, e.g. the source fingers of a multi-finger transistor: draw one line per finger on the same port layer. Multielement ports are supported for Palace only, not for Elmer.  
 
-**Composite ports** (multiple EM ports grouped into one port in the final output file) are not yet supported by this workflow. All ports with non-zero voltage are simulated one after another, resulting in n-port S-parameters.  
+**Separate ports are not combined**: the workflow doesn't merge several ports into one port of the output file, e.g. two single-ended ports into one differential port. All ports with non-zero voltage are simulated one after another, resulting in n-port S-parameters; combine them afterwards in the circuit simulator or with scikit-rf. A single terminal spread over several shapes is one port: draw the shapes on the same port layer (see above).  
 
 ### Running the model code to create Palace input files 
 
@@ -325,21 +330,36 @@ When you are done with inspection of the model (which is optional, no user actio
     "Model": {
         "Mesh": "palace_line_viaport.msh",
         "L0": 1e-06,
-        "Refinement": {}
+        "Refinement": { ... }
     },
     "Solver": {
-        "Driven": {
-            "MinFreq": 0.1,
-            "MaxFreq": 100.0,
-            "FreqStep": 2.5,
-            "SaveStep": 0,
-            "AdaptiveTol": 0.01
-        },
         "Linear": {
             "Type": "Default",
             "KSPType": "GMRES",
             "Tol": 1e-06,
             "MaxIts": 400,
+            "ComplexCoarseSolve": true,
+            "EstimatorTol": 0.01
+        },
+        "Order": 2,
+        "Device": "CPU",
+        "Driven": {
+            "Samples": [
+                {
+                    "Type": "Linear",
+                    "MinFreq": 2.5,
+                    "MaxFreq": 100.0,
+                    "FreqStep": 2.5,
+                    "SaveStep": 0
+                },
+                {
+                    "Type": "Point",
+                    "Freq": [0.01, 0.02],
+                    "SaveStep": 0
+                }
+            ],
+            "AdaptiveTol": 0.02
+        }
             ...
 ```
 
@@ -362,12 +382,12 @@ This starts a script *run_palace* where you can define in detail how to run Pala
 
 For workflow development and test, Palace was installed into an apptainer container, as documented in the Palace documentation in chapter “**Build using Singularity/Apptainer**”.  
 
-The script *run_palace* was then configured to start Palace inside the palace_014.sif container, which is located in the user’s home directory, and passes one command line argument (the config.json file). The additional parameter _-np 16_ tells palace to run using 16 threads. This will partition the simulation domain into 8 pieces, each running in a separate process, and the combine results into one output directory.  
+The script *run_palace* was then configured to start Palace inside the palace.sif container, which is located in the user’s home directory, and passes one command line argument (the config.json file). The additional parameter _-np 8_ tells Palace to run 8 MPI processes. This partitions the simulation domain into 8 pieces, each solved in a separate process, and the results are combined into one output directory.  
 
 
 ```bash
 #!/bin/bash
-apptainer exec ~/palace_014.sif palace -np 16 $1
+apptainer exec ~/palace.sif palace -np 8 $1
 ```
 
 
@@ -387,13 +407,15 @@ To do that conversion, the run_sim script where we started simulation with “ru
 
 *combine_snp*  is a script that searches for Palace s-parameter files (port-S.csv) and converts them to Touchstone file format. If the model was simulated for selected port excitations only, missing rows in the S-parameter file will be padded with zeros. 
 
-It should be noted that Palace frequency domain simulation cannot go down to 0 Hz, and the workflow script will replace any 0 Hz start frequency by a low value like 1 GHz. 
+It should be noted that Palace frequency domain simulation cannot go down to 0 Hz. For a 0 Hz start frequency, the workflow script starts the sweep at fstep instead and adds two single frequency points, 10 MHz and 20 MHz, as in the config file above. On a mesh with a refined cell size below 0.5 µm, these two points move up in proportion (e.g. 50 and 100 MHz at 0.1 µm), because there the solver fails at lower frequencies. 
 
 If simulation results include such low frequency data, combine_snp will create an additional S-Parameter file with suffix “_dc”, with a DC value extrapolated from the EM simulated data.[^combine-snp] Always check that DC extrapolated dataset carefully before use! 
 
 
 ![Output files after combine_snp: Touchstone file and DC-extrapolated Touchstone file](./images/gds2palace_workflow_userguide.pdf-0012-06.png)
 
+
+Two result scripts ship with the pip package (both need scikit-rf): `python -m gds2palace.scripts.combine_extend_snp [folder]` does what `combine_snp` does, and `python -m gds2palace.scripts.palace_summary [folder]` prints the degrees of freedom, solve time, peak RAM and adaptive mesh refinement error of every Palace run below a folder (`--plot` adds a convergence chart for runs with adaptive mesh refinement, needs matplotlib). In a clone of the repository, they are `scripts/combine_extend_snp.py` and `scripts/palace_summary.py`; both have `--help`.
 
 This ends our quick tour of using the gds2palace workflow. There are many additional settings available, which will be described in detail in the next chapters. 
 
@@ -438,18 +460,34 @@ Merging turns the gaps between the vias into solid via material, so the merged p
 
 This correction only knows about merging done here, by merge_polygon_size. If the via arrays were already merged before, e.g. with gds_prepare_for_EM, they arrive as solid polygons with fill factor 1.0, and their conductivity is not corrected.  
 
+#### Reading the layout: gds_reader.read_gds()
+
+The model script reads the layout with `gds_reader.read_gds()`. It reads only the layer numbers in its layer list, so the port layers (`simulation_ports.portlayers`) and, for thermal models, the marker layers (`thermal_objects.layers`) must be added to that list first. Besides the layer list, the datatypes (`purposelist`, `[0]` for IHP drawing data), `metals_list` and `merge_polygon_size`, it has these optional parameters:  
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `cellname` | `""` | Cell to read. Empty: the design cell, i.e. the top-level cell with the largest bounding box, never KLayout's `$$$CONTEXT_INFO$$$` (gds2palace 0.11.0 and newer; before, the first top-level cell). The hierarchy below the cell is flattened. |
+| `gds_boundary_layers` | `[]` | Layers that set the xy size of dielectrics with a GDS boundary in the stackup. Pass `dielectrics_list.get_boundary_layers()`. |
+| `mirror` | `False` | Mirror the layout about the y axis (x becomes -x). |
+| `offset_x`, `offset_y` | `0` | Shift the layout, after mirroring. |
+| `layernumber_offset` | `0` | Added to every layer number of this file, to read two layouts into one model without mixing their layers. |
+
+`mirror`, the offsets and `layernumber_offset` are used to combine two chips in one model, e.g. a die flipped onto an interposer: see [`more_examples/chiplet_split_at_pillars`](../../more_examples/chiplet_split_at_pillars/README.md).  
+
 ### settings ###
 
 settings for meshing and simulation control are implemented as a Python dictionary, which is passed to the simulation_setup.create_palace function. Some settings are required, other are optional with a meaningful default value.  
 
 These settings are always required:  
 
-**settings['unit']:** Unit of values in mesh, typically 1E-6  
 **settings['margin']:** Oversize of dielectrics from bounding box of drawing in xy plane. Can be a single value (all sides) or a list of 4 values [margin_xmin, margin_xmax, margin_ymin, margin_ymax]. All values must be 0 or more.  
-**settings['fstart']:** Start frequency in Hz  
-**settings['fstop']:** Stop frequency in Hz  
-**settings['fstep']:** Frequency step in Hz for output, not all of them need to be EM simulated due to adaptive frequency sweep  
 **settings['refined_cellsize']:** Target mesh size at polygon edges  
+**settings['fstart']** and **settings['fstop']:** Start and stop frequency in Hz. They can be left out if the model has only discrete frequencies (fpoint or fdump, see below).  
+
+These are usually set too, but have a default:  
+
+**settings['unit']:** Unit of values in mesh, default 1E-6 (microns)  
+**settings['fstep']:** Frequency step in Hz for output, not all of them need to be EM simulated due to adaptive frequency sweep. Default is 1/100 of the span from fstart to fstop.  
 
 All other settings are optional, grouped here by what they control.  
 
@@ -560,7 +598,7 @@ To get the full S-parameter file, all ports must be defined with non-zero voltag
 
 **SEVERAL SHAPES ON ONE PORT LAYER** : Each shape becomes one element of the same port, and the elements are in parallel (a Palace multielement lumped port; the port impedance stays the given Z0). This is useful for a terminal that is spread over several strips, e.g. the source fingers of a multi-finger transistor: draw one line per finger on the same port layer. Multielement ports are supported for Palace only, not for Elmer.  
 
-**Composite ports** (multiple EM ports grouped into one port in the final output file) are not yet supported by this workflow. All ports with non-zero voltage are simulated one after another, resulting in n-port S-parameters.  
+**Separate ports are not combined**: the workflow doesn't merge several ports into one port of the output file, e.g. two single-ended ports into one differential port. All ports with non-zero voltage are simulated one after another, resulting in n-port S-parameters; combine them afterwards in the circuit simulator or with scikit-rf. A single terminal spread over several shapes is one port: draw the shapes on the same port layer (see above).  
 
 **Port parasitics in results:** A lumped port is a small sheet with a physical size, so it adds a little capacitance and inductance to the result. Other 3D volume meshing EM tools behave the same for lumped ports. For ports at the layout edge, gds2palace removes them by calibration, see "Calibrated de-embedding at port walls" below. For other ports, `combine_snp` removes an estimated port inductance, calculated from the port's size.
 
@@ -645,12 +683,24 @@ A device close to the port wall sits in the port's fringe field, and the PEC wal
 
 The extended feed is a copy of the cross-section at the wall, so it is exactly the standards' line where the return current flows the same way, e.g. in a plane under the lines. With ground strips beside the lines that end open before the device, the extended feed is not the standards' line, and the error grows with the length of the extension; how large it is depends on the geometry (see the example under "Reference plane shift"). The setupEM preview shades the extension, which is not in the drawing.  
 
-#### Warnings while the model is written
+#### Warnings and notes while the model is written
 
-- **"the device is inside the port's fringe field"**: keep the device at least D away from the port wall, or move the port wall outward (above).
-- **"the wall mirrors its field"**: a PEC wall acts as a mirror for the device's field. Keep the device at least half its own size away from the wall, or move the port wall outward. The device's size is measured along the wall, without the ground metal that reaches the wall.
-- **"standards shortened"**: D is large compared to the wavelength. Cut where the ground is closer to the lines.
-- **"vias ... are extruded as solid bars"**: the standards replace a via array at the cut by a solid via bar. This was not tested in the study.
+The port wall lines in the log end with `Note:` lines (good to know) and `WARNING:` lines (the result is less accurate unless you act).
+
+Notes:
+
+- **"the device is ... from the port wall, less than D = ... (a small error)"**: the device sits in the port's fringe field. Keep the device at least D away from the port wall, or move the port wall outward (above).
+- **"the device is ... from the port wall, less than half its size (...): the wall mirrors it slightly"**: a PEC wall acts as a mirror for the device's field. Keep the device at least half its own size away from the wall, or move the port wall outward. The device's size is measured along the wall, without the ground metal that reaches the wall.
+- **"standards shortened from 4 D = ... to ..., to stay short against the guided wavelength"**: D is large compared to the wavelength. Cut where the ground is closer to the lines.
+- **"vias at the cut (...) are solid bars in the standards"**: the standards replace a via array at the cut by a solid via bar. This was not tested in the study.
+
+Warnings:
+
+- **"the calibration is valid up to about ... GHz (estimate); above, it is less accurate"** and **"D = ... is more than a tenth of the guided wavelength at the highest frequency"**: the port is too wide for the highest frequency. Cut where the ground is closer to the lines.
+- **"port walls ... and ... are ... apart, less than 2 D"**: two opposite port walls are so close that the coupling between their ports is not removed.
+- **"the standards' length ... is more than a fifth of the guided wavelength"** or **"... is less than 2 D"**: only with a `deembedding_length` set by hand, which is then outside the range of the automatic rule.
+
+If the cross-section changes within D/4 of the wall (a line at an angle, a taper, other metal close to the wall), the model is not written: the standards need a straight section there.
 
 #### Settings
 
@@ -882,11 +932,16 @@ By default, adaptive mesh refinement in Palace uses data from all simulation fre
 },
 "Solver": {
     "Driven": {
-        "MinFreq": 100.0,
-        "MaxFreq": 200.0,
-        "FreqStep": 1.0,
-        "SaveStep": 0,
-        "AdaptiveTol": 0.01
+        "Samples": [
+            {
+                "Type": "Linear",
+                "MinFreq": 100.0,
+                "MaxFreq": 200.0,
+                "FreqStep": 1.0,
+                "SaveStep": 0
+            }
+        ],
+        "AdaptiveTol": 0.02
     },
 ```
 
@@ -1217,7 +1272,7 @@ settings['iterative'] = False  # True = iterative linear solver, False = direct 
 
 - `settings['order']` selects the basis function order, same setting as used for Palace. Elmer supports order 1 (linear) and order 2 (quadratic); other values fall back to the order-1 solver recipe.
 - `settings['iterative']` selects between Elmer's direct solver (MUMPS, default, robust for small/medium models) and an iterative solver, which can be more memory-efficient for large models.
-- `settings['ELMER_MPI_THREADS']` (optional) enables MPI-parallel solving: gds2palace partitions the mesh with `ElmerGrid` for the given number of MPI processes, and the generated `run_elmer` script (see below) uses `mpirun` to start `ElmerSolver`.
+- `settings['ELMER_MPI_THREADS']` (optional) enables MPI-parallel solving: gds2palace partitions the mesh with `ElmerGrid` for the given number of MPI processes, and the generated `run_elmer` script (see below) uses `mpirun` to start `ElmerSolver` (`mpiexec` on Windows).
 
 ```python
 settings['ELMER_MPI_THREADS'] = 8   # partition mesh and solve using 8 MPI processes
@@ -1230,7 +1285,7 @@ settings['ELMER_MPI_THREADS'] = 8   # partition mesh and solve using 8 MPI proce
 A few other Palace features are not yet available in the Elmer EM flow:
 
 - **Sheet resistor layers** (`Type="sheet"` metal paired with a `Resistor` material, as used for on-chip resistors) are not yet supported for Elmer EM output.
-- **Composite ports** (grouping several EM ports into one output port) are not supported, same limitation as for Palace.
+- **Multielement ports** (several shapes on one port layer) and **tube ports** (a via port shape with area) are Palace only.
 
 ### Running the Elmer EM simulation and getting S-parameters
 
@@ -1256,6 +1311,8 @@ Run it from the model output directory:
 cd <model>_data
 ./run_elmer
 ```
+
+On Windows, gds2palace writes `run_elmer.bat` instead, with `mpiexec -n 8 ElmerSolver case.sif` for MPI (MS-MPI has `mpiexec`, not `mpirun`). Run it as `run_elmer.bat` in the model output directory.
 
 `ElmerSolver` finds `case.sif` automatically via `ELMERSOLVER_STARTINFO`. The same `combine_snp` postprocessing script already used for Palace results also recognizes Elmer's `scalar_results` output and converts it to Touchstone (`.sNp`) format, so downstream use of Elmer S-parameters is identical to Palace results.
 
@@ -1309,10 +1366,14 @@ thermal_objects.add_consttemp(simulation_setup.constanttemp(
 
 - `source_layernum` is a GDSII layer number you draw purely as an xy footprint marker; it does not set a z-position.
 - `target_layername` is the name of an existing `<Layer>` from the stackup XML — its z-range becomes the 3D volume the source/boundary is applied to.
-- `heatsource(power, ...)` dissipates `power` Watts as a volumetric heat source over that volume. In the example above, 0.65 W is applied to the `TFR` resistor layer via marker layer 201.
+- `heatsource(power, ...)` dissipates `power` Watts as a volumetric heat source over that volume. In the example above, 0.65 W is applied to the `TFR` resistor layer via marker layer 201. If the marker layer has several polygons, `power` is the total for all of them, not the power per polygon.
 - `constanttemp(temp, ...)` fixes that volume's temperature (Kelvin), acting as a heat sink/reference boundary. In the example above, layer 202 pins the `BACKSIDEGND` layer to 298 K (25 °C), a typical backside heatsink boundary.
 
-The target layer for a heat source must be a volume (`Zmax` larger than `Zmin`). The target layer for a constant-temperature boundary is usually a zero-thickness sheet layer (`Zmax = Zmin`) — if it has finite thickness instead, two boundaries are created, one at each face.
+The marker layers must be in the layer list that `read_gds()` reads, like port layers in an EM model: add `layernumbers.extend(thermal_objects.layers)` before calling `read_gds()`, or the marker polygons are not read.
+
+The target layer for a heat source must be a volume (`Zmax` larger than `Zmin`). In the latest IHP stackups, use `HEAT_TRANSISTOR` for transistors and `HEAT_RESISTOR` for resistors as targets: see "Heat source targets" in [`XML_stackup/latest/IHP/README.md`](../../XML_stackup/latest/IHP/README.md). The target layer for a constant-temperature boundary is usually a zero-thickness sheet layer (`Zmax = Zmin`) — if it has finite thickness instead, two boundaries are created, one at each face.
+
+The reserved material `PEC` has no thermal properties. In a thermal model, PEC sheets are ignored (as a target of a constant-temperature boundary, they only give its z position), and PEC volumes get the thermal conductivity of copper.
 
 ### Model script settings
 
@@ -1333,18 +1394,20 @@ config_name, data_dir = simulation_setup.create_elmer_thermal (settings)
 
 Note there is no `excite_ports` argument here — a thermal run has no ports.
 
+The thermal solve is iterative by default (BiCGStabl with an ILU3 preconditioner). If Elmer stops with `Too many iterations were needed`, set `settings['iterative'] = False` for the direct solver (UMFPACK); both give the same temperatures. This is the opposite default to Elmer EM models, where `iterative` is `False`. Why the thermal matrix is hard to solve: see "Optional: linear solver" in [`Elmer_Thermal_Workflow.md`](../../more_examples/thermal_simulation_using_Elmer/Elmer_Thermal_Workflow.md).
+
 ### Running ElmerSolver and viewing results
 
-Output goes to an `elmer_model/` folder next to the script, containing the gmsh mesh, the Elmer-native `mesh/` folder (from `ElmerGrid`), `case.sif` (materials, body/volume definitions, the heat source as a volumetric Body Force, and the constant-temperature Boundary Condition), and `ELMERSOLVER_STARTINFO`. It's worth a quick look at `case.sif` before solving, especially the first time you use a new stackup — it's plain text and easy to sanity-check.
+The example script creates its output with `utilities.create_sim_path(..., dirname='elmer_model')`, so it goes to `elmer_model/<model>_data/` next to the script. That folder contains the gmsh mesh, the Elmer-native `mesh/` folder (from `ElmerGrid`), `case.sif` (materials, body/volume definitions, the heat source as a volumetric Body Force, and the constant-temperature Boundary Condition), and `ELMERSOLVER_STARTINFO`. It's worth a quick look at `case.sif` before solving, especially the first time you use a new stackup — it's plain text and easy to sanity-check.
 
 ```
-cd elmer_model
+cd elmer_model/<model>_data
 ElmerSolver
 ```
 
 Results appear in the same directory:
 
-- `thermal_results.vtu` — full 3D temperature field, open in ParaView.
+- `thermal_results_t0001.vtu` — full 3D temperature field, open in ParaView.
 - `thermal_results.dat` — quick min/max temperature summary (plain text).
 
 If `settings['ELMER_MPI_THREADS']` is set to more than 1, gds2palace also partitions the mesh for you; run `ElmerSolver_mpi` with your MPI launcher of choice instead of the single-threaded `ElmerSolver`.
@@ -1592,8 +1655,9 @@ The XML stackup format has grown beyond the basic dielectric stack and conductor
 - **Derived layers** — a layer's geometry can be computed from other layers via boolean operations (`AND`/`OR`/`XOR`/`NOT`) and resizing, instead of only being read directly from GDSII. Used, for example, to derive on-chip resistor geometry from existing process layers.
 - **Reference-relative positioning** — a `<Layer>` or `<Dielectric>` can be positioned as an offset from the top or bottom edge of another named layer/dielectric, instead of requiring an absolute Zmin/Zmax.
 - **Thermal material properties** — `Density`, `ThermalConductivity` and `ThermalConductivityTable` on `<Material>`, plus a `<Tables>` block for temperature-dependent conductivity, used by the Elmer thermal flow described in chapter "Using gds2palace with Elmer FEM for thermal simulation".
+- **Variables** — a `<Variables>` block defines named values, and any attribute value that starts with `=` is an expression of them, e.g. `Thickness="=total_thickness-20"`. The latest IHP stackups use this for the chip and air thickness. A model script can change variables without editing the file: `stackup_reader.read_substrate(XML_filename, variable_overrides={'total_thickness': 100})`. An unknown variable name stops with an error.
 
-Using derived layers, reference-relative positioning, or thermal conductivity tables requires `schemaVersion="3.0"` in the `<Stackup>` root element. The stackup reader prints a warning if a file declares a newer `schemaVersion` than the installed gds2palace version supports, so an outdated installation is easier to notice.
+The `schemaVersion` in the `<Stackup>` root element is informational: the reader doesn't need it to read any of these features. It prints a warning if a file declares a newer `schemaVersion` than the installed gds2palace supports (currently 3.1), so an outdated installation is easier to notice. Files with these features declare 3.0 (reference-relative positioning) or 3.1 (variables).
 
 The full attribute reference, with examples, is in [`XML_stackup_format.md`](../XML_stackup_format/XML_stackup_format.md), and derived-layer details specifically are in [`derived_layers.md`](../XML_stackup_format/derived_layers.md).
 

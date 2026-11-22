@@ -118,7 +118,7 @@ mesh_convergence_balun_mim/
 ├── trans_100diff_to_80se_ports_skin_mesh{3,2,1}.py     # 'solve_inside_skin' (§4)
 ├── trans_100diff_to_80se_ports_filled_mesh2.py         # 'solve_inside' (§4)
 ├── verify_MIM_nominal_280.gds / .py         # MIM capacitor side check (§3)
-├── palace_model/<name>_data/                # mesh, config and full Palace output per run
+├── palace_model/<name>_data/                # made by the model scripts, not in the repository: mesh, config and Palace output per run
 └── results/
     ├── story_plots.py             # the story_balun.png plot and numbers in this report
     ├── analyze_convergence.py     # mixed-mode ΔS tables (CSV), per-parameter overlays, balance plots
@@ -130,4 +130,4 @@ mesh_convergence_balun_mim/
     └── plots/
 ```
 
-Run the scripts from this folder in the `d:\venv\palace` venv to regenerate plots and tables from the archived Touchstone files.
+Run the scripts from this folder in a venv with gds2palace, scikit-rf and matplotlib (`render_labeled_layout.py` also needs gdspy and gds_viewer) to regenerate plots and tables from the archived Touchstone files.

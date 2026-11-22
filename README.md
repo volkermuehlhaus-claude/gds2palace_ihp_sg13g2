@@ -31,8 +31,9 @@ In addition to Palace that is required for simulation of the output files, these
 - gdstk (gds2palace 0.10 and older used gdspy)
 - gmsh
 - numpy
-- matplotlib (for the inductor synthesis example scripts)
-- scikit-rf (for the script that converts Palace output to Touchstone SnP format)
+- shapely 2.0 or newer
+- scikit-rf (for the script that converts Palace output to Touchstone SnP format, not installed with gds2palace)
+- matplotlib and gdspy (only for the inductor synthesis and pcLab example scripts: `pip install gdspy`)
 
 Two external tools are needed for parts of the workflow, but are not Python modules and must be installed separately:
 
@@ -80,7 +81,7 @@ The screenshot below shows the workflow: user input is the GDSII layout file and
 For more details, please have a look at the detailed user's guide.
 [gds2palace FEM workflow for IHP](./doc/gds2palace_workflow_userguide.pdf) 
 
-If port geometry information is available, as created by the latest version of gds2palace, an additional file with de-embedded results is created. This is an experimental feature, it adds port de-embedding for lumped ports by cascading negative series L at each port.
+combine_snp also writes a file with de-embedded results, using the port geometry in `port_information.json`. Ports on a port wall (gds2palace 0.10.0 and newer) are removed by calibration with line standards. At all other ports, an estimated port inductance is removed. Tube ports stay as they are.
 
 # Minimum configuration
 
@@ -138,7 +139,7 @@ combine_snp is a script that searches for Palace s-parameter files (port-S.csv) 
 
 If the model was simulated for selected port excitations only, missing rows in the S-parameter file will be padded with zeros.
 
-It should be noted that Palace frequency domain simulation cannot go down to 0 Hz, and the workflow script will replace any 0 Hz start frequency by a low value like 1 GHz.If simulation results include such low frequency data, combine_snp will create an additional S-Parameter file with suffix “_dc”, with a DC value extrapolated from the EM simulated data.1 Always check that DC extrapolated dataset carefully before use!
+It should be noted that Palace frequency domain simulation cannot go down to 0 Hz. The workflow script replaces a 0 Hz start frequency by two low frequency points, 10 MHz and 20 MHz (higher for meshes finer than 0.5 µm, where the solver fails at 10 MHz), and the sweep starts at fstep. If simulation results include such low frequency data, combine_snp will create an additional S-Parameter file with suffix “_dc”, with a DC value extrapolated from the EM simulated data. Always check that DC extrapolated dataset carefully before use!
 
 ![snp_output](./doc/png/snp_output.png)
 

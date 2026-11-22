@@ -259,10 +259,12 @@ Use `simulation_setup.create_elmer(excite_ports, settings)` instead of
 
 ### Settings
 
-Required: `unit`, `margin`, `fstart`, `fstop`, `refined_cellsize`, plus the
-model data keys set at the end of the template. `margin` is one value, or 4
-values `[xmin, xmax, ymin, ymax]`, all 0 or more. Optional keys and defaults
-(from `util_simulation_setup.py`; check there for the current list):
+Required: `margin`, `refined_cellsize`, and `fstart` + `fstop` (or only
+`fpoint`/`fdump`), plus the model data keys set at the end of the template.
+`margin` is one value, or 4 values `[xmin, xmax, ymin, ymax]`, all 0 or more.
+`unit` defaults to `1e-6` (microns). Optional keys and defaults (from
+`util_simulation_setup.py`, `util_calibration.py` and `util_elmer.py`; the code
+is the complete list, search for `get_optional_setting`):
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -281,13 +283,20 @@ values `[xmin, xmax, ymin, ymax]`, all 0 or more. Optional keys and defaults
 | `save_adaptive_mesh` | `False` | Keep the refined mesh for reuse |
 | `complex_coarse_solve` | `True` | Full complex coarse solve; keep it on unless RAM runs out |
 | `solver_maxits` / `solver_tol` | `400` / `1e-6` | Palace linear solver limits |
-| `boundary` | 6 × `'ABC'` | xmin, xmax, ymin, ymax, zmin, zmax: `ABC`, `PEC` or `PMC` |
+| `boundary` | 6 × `'ABC'` | xmin, xmax, ymin, ymax, zmin, zmax: `ABC`, `PEC` or `PMC` (`'PML'` is accepted and treated as `'ABC'`); `'PORTWALL'` on xmin, xmax, ymin or ymax makes a port wall, see "Port walls" below (Palace only) |
 | `air_around` | `margin` (a 4-value `margin`: per side, z sides the largest value) | Air around the dielectrics, one value or 6 values; 0 is allowed |
 | `conductor_model` | `'surface'` | Conductor model: `'surface'` (surface impedance on all conductor faces, fastest, Q of top metal coils 18-30 % high), `'solve_inside'` (conductors meshed as volumes), `'solve_inside_skin'` (volumes with thin layers along the faces for the skin effect, most accurate loss). See the FAQ "Which conductor model should I use?". Scripts from before 0.9.0 use `filled_metals` (`True` = `'solve_inside'`, `False` = `'surface'`), which still works |
 | `fill_factor_correction` | `False` | Scale the conductivity of merged via arrays by their fill factor (needs `merge_polygon_size > 0`) |
 | `no_gui` / `no_preview` / `preview_only` | `False` | gmsh windows: none at all / skip the unmeshed preview / preview and stop |
 | `save_gmsh_unrolled` | `False` | Also save the unmeshed gmsh geometry |
 | `config_suffix` | `''` | Suffix for `config.json`/`port_information.json`, e.g. `'_fine'` |
+| `reference_plane_shift` | none | Port walls: dictionary per port wall, e.g. `{'xmin': 60}`, in drawing units, positive into the layout |
+| `port_wall_extension` | none | Port walls: dictionary per port wall, `'auto'` or a length: moves the port wall outward, the feed extended by the cross-section at the wall |
+| `deembedding_length` | 4 D, at most λg/5 at `fstop`, at least 2 D | Port walls: length of the shorter calibration standard, in drawing units |
+| `wall_extension` | none | Dictionary per side that is not a port wall, e.g. `{'xmax': 2000}`: the layout's cross-section at that edge continued outward (pieces of a split region) |
+| `deembedding` | (on) | `'none'`: `combine_snp` writes only the raw result, no `_deembedded` file |
+| `iterative` | `False` for Elmer EM, `True` for Elmer thermal | Elmer linear solver: iterative or direct (EM: MUMPS, thermal: UMFPACK) |
+| `ELMER_MPI_THREADS` | `1` | Elmer: number of MPI processes; the mesh is partitioned for them and `run_elmer` starts `mpirun`/`mpiexec` |
 
 **Unknown keys are silently ignored.** A typo such as `settings['nogui']`
 leaves the default in place: with `no_gui` at `False`, gmsh opens a window and
@@ -324,9 +333,18 @@ an unattended run seems to hang. Double-check key names against the source.
   others are filled with zeros. For a full S-matrix, give every port a
   non-zero voltage.
 - `port_Z0` is the port reference impedance.
-- Only lumped ports are supported (no wave ports, no composite ports). Lumped
-  ports add some series inductance; `combine_snp` writes an extra
-  `_deembedded` file with an estimate of it removed.
+- Only lumped ports are supported (no wave ports). Lumped ports add some
+  series inductance; `combine_snp` writes an extra `_deembedded` file with an
+  estimate of it removed (not for tube ports, which stay as they are).
+- **Port walls** (gds2palace 0.10.0 and newer, Palace only): `'PORTWALL'` on
+  a side in `settings['boundary']` puts a PEC wall right at the layout edge,
+  which is the ground of the ports there. gds2palace writes two line
+  standards for these ports, `run_sim` solves them first, and `combine_snp`
+  removes the ports by calibration (double delay) instead of an estimated
+  inductance. The reference plane is at the layout edge, or moved with
+  `reference_plane_shift`. Every port on a port wall must be excited. See
+  "Calibrated de-embedding at port walls" in the user's guide and
+  [`more_examples/calibrated_boxwall_ports/`](more_examples/calibrated_boxwall_ports/).
 
 ### Via arrays
 
@@ -379,7 +397,8 @@ Simplify GDS), the original vias are gone and no correction is possible.
   (needs scikit-rf). Extra files:
   - `_dc`: a DC point extrapolated from the low-frequency data (FEM can't
     solve at 0 Hz); check it before use.
-  - `_deembedded`: the estimated lumped-port inductance removed.
+  - `_deembedded`: ports on port walls calibrated, the estimated lumped-port
+    inductance removed at all other ports; tube ports stay as they are.
 - Plot with [plot_snp](https://github.com/VolkerMuehlhaus/plot_snp)
   (`python plot_snp.py result.s2p S11 S21`), or with scikit-rf and matplotlib.
   For scripted runs use the `Agg` backend and `savefig()`, not `plt.show()`.

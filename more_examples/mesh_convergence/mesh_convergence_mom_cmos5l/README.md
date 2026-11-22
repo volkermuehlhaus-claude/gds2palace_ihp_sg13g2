@@ -84,7 +84,7 @@ mesh_convergence_mom_cmos5l/
 ├── c4_frame_ports_mesh{200,100,50}nm.py           # order 2, fixed 1 GHz
 ├── c4_frame_ports_mesh{200,100,50}nm_order3.py    # order 3, fixed 1 GHz
 ├── c4_frame_ports_mesh200nm_sweep.py              # 0-50 GHz sweep, 0.2 µm, order 2, real coarse solve
-├── palace_model/c4_frame_ports_<name>_data/       # mesh, config and full Palace output per run
+├── palace_model/c4_frame_ports_<name>_data/       # made by the model scripts, not in the repository: mesh, config and Palace output per run
 └── results/
     ├── story_plots.py             # the story_c12_vs_cost.png plot and numbers in this report
     ├── analyze_convergence.py     # C12 and ΔS tables (CSV), C12 and S-parameter plots
@@ -94,4 +94,4 @@ mesh_convergence_mom_cmos5l/
     └── plots/
 ```
 
-Run the scripts from this folder in the `d:\venv\palace` venv to regenerate plots and tables from the archived Touchstone files.
+Run the scripts from this folder in a venv with gds2palace, scikit-rf and matplotlib to regenerate plots and tables from the archived Touchstone files.

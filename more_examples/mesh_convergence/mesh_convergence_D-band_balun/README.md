@@ -141,7 +141,7 @@ mesh_convergence_D-band_balun/
 ├── palace_balun_skin_mesh{5,3,2,1}.py              # 'solve_inside_skin' (step 4)
 ├── palace_balun_filled_mesh2.py                    # 'solve_inside' (step 4)
 ├── amr_conformal/                                  # follow-up study: AMR settings, AMR at one frequency
-├── palace_model/palace_balun_<name>_data/          # mesh, config and full Palace output per run
+├── palace_model/palace_balun_<name>_data/          # made by the model scripts, not in the repository: mesh, config and Palace output per run
 └── results/
     ├── story_plots.py            # the story_*.png plots and numbers in this report
     ├── analyze_convergence.py    # detailed ΔS tables (CSV) and per-S-parameter overlays
@@ -153,4 +153,4 @@ mesh_convergence_D-band_balun/
     └── plots/
 ```
 
-Run the scripts from this folder in the `d:\venv\palace` venv to regenerate plots and tables from the archived Touchstone files.
+Run the scripts from this folder in a venv with gds2palace, scikit-rf and matplotlib (`render_labeled_layout.py` also needs gdspy and gds_viewer) to regenerate plots and tables from the archived Touchstone files.

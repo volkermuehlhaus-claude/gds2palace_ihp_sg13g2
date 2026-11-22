@@ -74,7 +74,7 @@ absolute `float`. You never need to call `.resolve()` yourself.
 **`dielectrics_list`** (`dielectric_layers_list`)
 - `.dielectrics` — list of `dielectric_layer`, each with `.name`,
   `.material`, `.zmin`/`.zmax`/`.thickness` (resolved floats),
-  `.is_top`/`.is_bottom`, `.gdsboundary` (int or `None`, from `Boundary=`),
+  `.is_top`/`.is_bottom`, `.gdsboundary` (**a string** such as `"299"`, or `None`, from `Boundary=`),
   `.metals_inside` (list of `metal_layer`).
 - `.get_by_name(name)`, `.get_boundary_layers()` (list of int, feeds
   `gds_reader.read_gds()`'s `gds_boundary_layers=`).
@@ -95,7 +95,7 @@ absolute `float`. You never need to call `.resolve()` yourself.
 empty if the file has no `<DerivedLayers>`)
 - `.derived_layers` — list of `derived_layer`, each with `.name`,
   `.layernum` (**a string**), `.operation` (`"AND"`/`"OR"`/`"XOR"`/`"NOT"`/`"SIZE"`),
-  `.operands` (list of int layer numbers), `.oversize`.
+  `.operands` (list of layer numbers as **strings**, e.g. `["8", "19"]`), `.oversize`.
 - `.getbylayernumber(n)`, `.getlayernumbers()` (list of int).
 - `.get_ordered()` — topologically sorts so a derived layer built from
   *another* derived layer processes after its dependency; can `exit(1)` on a
@@ -120,7 +120,8 @@ Every key **must** name a `<Variable>` already declared in the file's
 ### Gotchas
 
 - **`layernum` is a string, not an int**, on both `metal_layer` and
-  `derived_layer` (`resolve_int_attr()` returns `"134"`, not `134`). Always
+  `derived_layer` (`resolve_int_attr()` returns `"134"`, not `134`); the same
+  holds for `dielectric_layer.gdsboundary` and `derived_layer.operands`. Always
   go through `getbylayernumber(int)`/`getlayernumbers()` (which do the
   conversion for you) rather than comparing `.layernum` directly, unless you
   explicitly `int()` it first.
@@ -155,7 +156,8 @@ Every key **must** name a `<Variable>` already declared in the file's
   polygons only exist once `gds_reader.read_gds()` runs
   `resolve_derived_layers()` against real GDS data — don't expect derived
   layer geometry from the reader alone.
-- **`__version__`** (currently `"1.8.0"`) is display-only: it's
+- **`__version__`** (`"1.9.5"` at the time of writing; see the top of
+  `util_stackup_reader.py`) is display-only: it's
   interpolated into `check_schema_version()`'s warning text and into
   min-reader-version XML comments stamped by `stackup_writer.py`, but never
   parsed back or compared by any code. It's still bumped by convention on

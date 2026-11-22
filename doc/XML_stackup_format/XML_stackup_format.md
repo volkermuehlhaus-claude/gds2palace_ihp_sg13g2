@@ -14,7 +14,7 @@ derived-layer examples using `AND`/`OR`/`NOT`).
 ```xml
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <Stackup schemaVersion="2.0">
-  <Variables>              <!-- optional, see "<Variables> (schema proposal)" near the end -->
+  <Variables>              <!-- optional, see "<Variables>" near the end -->
     ...
   </Variables>
   <Materials>
@@ -85,8 +85,10 @@ elements later in the file.
 
 ## `<ELayers>`
 
-Container for the dielectric stack and drawn layers. `LengthUnit` sets the unit for all
-`Thickness`/`Zmin`/`Zmax`/`Offset`/`Oversize` values in this section (typically `"um"`).
+Container for the dielectric stack and drawn layers. All `Thickness`/`Zmin`/`Zmax`/`Offset`/`Oversize`
+values are in the unit of the model script's `settings['unit']` (normally `1e-6`, microns), the
+same unit as the GDSII coordinates. `LengthUnit` (typically `"um"`) is informational only: the
+reader doesn't use it.
 
 ### `<Dielectrics>`
 
@@ -168,9 +170,9 @@ dielectric an explicit `Reference` instead of relying on file order.
 Drawn layers: metals, vias, sheet resistors, and dielectric "bricks" that are read from
 specific GDSII layer numbers instead of being implied by the dielectric stack.
 
-An optional `<Substrate Offset="..."/>` element shifts the z-position of every `<Layer>` by
+An optional `<Substrate Offset="..."/>` element shifts the z-position of every `<Layer>` up by
 a fixed amount (used e.g. to place the drawn stack on top of a backside/substrate region
-that is itself modeled with negative z).
+that is itself modeled with negative z). Use a positive `Offset`.
 
 | Attribute | Required | Default | Description |
 |-----------|----------|---------|--------------|
@@ -178,7 +180,7 @@ that is itself modeled with negative z).
 | `Type`    | yes      | —       | `conductor`, `via`, `dielectric`, or `sheet` (see below). |
 | `Material`| yes      | —       | References a `<Material>` by name, or the reserved keyword `"PEC"` (see below). |
 | `Zmin`    | yes      | —       | Bottom z-position — absolute, or an offset from `Reference`'s edge if `Reference` is set (see below). |
-| `Zmax`    | yes      | —       | Top z-position, same absolute-vs-offset rule as `Zmin`. Equal to `Zmin` forces `Type` to `sheet` regardless of the stated `Type`. |
+| `Zmax`    | yes      | —       | Top z-position, same absolute-vs-offset rule as `Zmin`. For a sheet, set `Type="sheet"` and write `Zmin` and `Zmax` with the same text, e.g. `Zmin="0.4" Zmax="0.4"`. |
 | `Layer`   | yes      | —       | GDSII layer number. Also used as the target layer number for a [derived layer](#derivedlayers-boolean-operations-on-layers), in which case its geometry does not need to exist directly in the GDSII file. |
 | `Reference` | no     | —       | Name of another `<Dielectric>` or `<Layer>` to position this layer relative to. When set, `Zmin`/`Zmax` are reinterpreted as offsets from the resolved reference edge instead of absolute z (positive = up). Dielectric and Layer names share one namespace for this lookup, so a name must not exist as both. |
 | `ReferenceEdge` | no | `Top`   | `Top` or `Bottom` (case-insensitive). Only meaningful with `Reference` set. For a `<Dielectric>` target: its top/bottom z. For a `<Layer>` target: its `Zmax`/`Zmin`. |
@@ -189,18 +191,24 @@ Layer `Type` meanings:
   merging (`merge_polygon_size` in `read_gds()`).
 - **`dielectric`** — a drawn (GDSII-sourced) dielectric region, as opposed to the implicit
   stack in `<Dielectrics>`.
-- **`sheet`** — zero-thickness layer (`Zmin == Zmax`), typically paired with a `Resistor`
-  material for sheet-resistance elements.
+- **`sheet`** — zero-thickness layer (`Zmin == Zmax`). It needs a `Resistor` material (sheet
+  resistors) or `PEC` (ideal sheets such as `SUBGND`/`BACKSIDEGND`). With a `Conductor`
+  material, the model setup stops with `Invalid material assignment: sheet layer ... must use a
+  resistor material!`; a `Resistor` material on a layer with thickness stops it too.
 
 > **Reserved keyword `Material="PEC"`:** valid on a `conductor`, `via`, or `sheet` layer with no
 > matching `<Material>` entry at all — it bypasses the `<Materials>` list entirely and is
-> emitted as an ideal conductor (ideal Palace `Boundaries.PEC` / Elmer zero-tangential-E
-> boundary for `conductor`/`sheet`; for `via`, both are FEM solvers with no ideal-conductor
-> *volume*, so it's approximated there as a fixed, very high conductivity domain instead).
+> emitted as an ideal conductor: ideal Palace `Boundaries.PEC` / Elmer zero-tangential-E
+> boundary for a `sheet`, and for a `conductor` with the default surface conductor model. Palace
+> and Elmer have no ideal-conductor *volume*, so a `PEC` `via`, and a `PEC` `conductor` meshed as a
+> volume (`conductor_model` `'solve_inside'` or `'solve_inside_skin'`), is approximated as a
+> fixed, very high conductivity domain instead.
 > Use this instead of an ad hoc zero-Ohm/near-infinite-conductivity material - a `Resistor`
-> material with `Rs="0"` is rejected by Palace (all of `Rs`/`Ls`/`Cs` zero is invalid). Not
-> valid together with Elmer thermal output (`elmer_thermal`/`setupThermal`), which has no
-> electromagnetic concept of PEC.
+> material with `Rs="0"` is rejected by Palace (all of `Rs`/`Ls`/`Cs` zero is invalid).
+> In Elmer thermal models (gds2palace 0.8.1 and newer), `PEC` sheets are ignored, like the
+> resistor sheets; a `PEC` sheet can still be the target layer of a constant-temperature
+> boundary, which uses only its z position. `PEC` vias and conductor volumes use the thermal
+> properties of copper.
 
 ```xml
 <Layers>
@@ -234,10 +242,9 @@ regardless of file order).
 Two rules apply:
 
 - **Shared namespace**: `Reference` is looked up against `<Dielectric>` names and `<Layer>`
-  names together, so a name must not exist as both — and `<Layer>` names must be unique (unlike
-  the general case, this is enforced when `Reference` is used).
+  names together, so a name must not exist as both. Give every `<Layer>` a unique `Name`.
 - **Mutual exclusivity with `<Substrate Offset="...">`**: a file must not mix
-  `Reference`-based `<Layer>` positioning with a nonzero `<Substrate Offset="...">` — it would
+  `Reference`-based `<Layer>` positioning with a `<Substrate Offset="...">` — it would
   be ambiguous whether the offset applies before or after reference resolution. Use `Reference`
   to point at a backside dielectric's edge directly instead of using `Offset`.
 
@@ -321,6 +328,8 @@ constant `ThermalConductivity`).
           ThermalConductivityTable="Si_k_vs_T" Color="01e0ff"/>
 ```
 
+List the `<Point>`s in ascending `Temperature`, as in the example.
+
 ## `<Variables>`
 
 A file using `<Variables>`/`=`-expressions declares `schemaVersion="3.1"` (see
@@ -328,9 +337,9 @@ A file using `<Variables>`/`=`-expressions declares `schemaVersion="3.1"` (see
 `"3.0"` bump for `Reference`/`ReferenceEdge` — so an older reader warns instead of silently
 misreading it.
 
-Optional, sibling of `<Materials>` directly under `<Stackup>` — but unlike every other section
-in this document, it must come **first**, before `<Materials>` (see the
-[Top-level structure](#top-level-structure) diagram above). Defines named values that can then
+Optional, sibling of `<Materials>` directly under `<Stackup>`. By convention it comes first,
+before `<Materials>` (see the [Top-level structure](#top-level-structure) diagram above), but the
+reader resolves the variables before anything else wherever the section is. Defines named values that can then
 be referenced from *any* attribute value anywhere else in the file (Materials, Dielectrics,
 Layers, Substrate, DerivedLayers, Tables — see "Using a variable or equation" below), instead
 of hand-copying the same physical value into every attribute/file that needs it.
@@ -373,9 +382,10 @@ of an expression — there's no separate reference syntax:
        Zmin="=metal_thickness + 1.04" Zmax="=via_top + 1.04" />
 ```
 
-A value **without** a leading `=` is a plain literal, parsed exactly as it is today — this
-keeps every existing stackup file's meaning unchanged (no attribute value in this repo's
-example files begins with `=`).
+A value **without** a leading `=` is a plain literal, parsed as before — this keeps the meaning
+of stackup files without variables unchanged. The latest IHP stackups in
+[`XML_stackup/latest/IHP/`](../../XML_stackup/latest/IHP/) use expressions, e.g.
+`Thickness="=bulk_thickness"` on the substrate.
 
 This applies to every attribute in the file, not only Materials/Dielectrics/Layers — including
 `<Substrate Offset="...">`, `<DerivedLayer Layer="..." Oversize="...">` and its `<Operand
@@ -384,10 +394,12 @@ Layer="...">` children, and `<Table>`'s `<Point Temperature="..." Value="...">` 
 `DerivedLayers` and `Tables` usage.
 
 **Expression syntax:** `+ - * / **`, unary `-`/`+`, parentheses, numeric literals (including
-scientific notation, same as accepted by `float()` today), and bare identifiers naming a
-`<Variable>`. A `string`-typed variable may only be used as the sole token in an expression
-(`="tech_name"`, i.e. whole-value substitution) — using a string variable inside arithmetic is
-an error. No string concatenation or function calls (`min()`, `max()`, etc.) are supported.
+scientific notation, same as accepted by `float()`), quoted string literals, and bare
+identifiers naming a `<Variable>`. A `string`-typed variable may only be used as the sole token
+in an expression (`=tech_name`, i.e. whole-value substitution) — using a string variable inside
+arithmetic is an error. Quotes make a literal, not a variable reference: `="tech_name"` gives
+the text `tech_name`. No string concatenation or function calls (`min()`, `max()`, etc.) are
+supported.
 
 **Integer attributes:** GDSII layer numbers (`<Layer Layer="...">`, `<DerivedLayer Layer="...">`,
 `<Operand Layer="...">`, `<Dielectric Boundary="...">`) are integers — an expression resolving

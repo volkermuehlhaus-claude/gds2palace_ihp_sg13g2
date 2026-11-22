@@ -24,9 +24,9 @@ Worked example files (in this repo):
 
 ## Prerequisites
 
-- Python with gds2palace and its dependencies (`gdspy`, `gmsh`, `numpy`)
-  installed, or the `gds2palace` package folder placed next to your model
-  script.
+- Python with gds2palace and its dependencies (`gdstk`, `gmsh`, `numpy`,
+  `shapely`) installed (`pip install gds2palace`), or the `gds2palace`
+  package folder placed next to your model script.
 - **Elmer FEM** installed, with `ElmerGrid` and `ElmerSolver` available:
   - Windows: set the `ELMER_HOME` environment variable to your Elmer install
     directory (gds2palace looks for `%ELMER_HOME%\bin\ElmerGrid.exe`).
@@ -122,9 +122,11 @@ settings['elmer_thermal']     = True   # this is what selects the thermal flow
 ```
 
 Also set as usual: `gds_filename`, `XML_filename`, `cellname`,
-`preprocess_gds`, `merge_polygon_size`, and `thermal_objects` (from step 2).
+`merge_polygon_size`, and `thermal_objects` (from step 2). The example script
+still passes `preprocess_gds` to `read_gds()`; that argument is obsolete and
+only prints a note.
 
-Output goes to an `elmer_model/` folder created next to the script.
+Output goes to `elmer_model/<model>_data/`, created next to the script.
 
 ### Optional: skip the interactive mesh preview
 
@@ -160,7 +162,7 @@ the gmsh preview (unless `no_gui` is set — close the window to continue), and
 then automatically converts the mesh to Elmer's native format via
 `ElmerGrid`.
 
-### Output files (in `elmer_model/`)
+### Output files (in `elmer_model/<model>_data/`)
 
 | File | What it is |
 |---|---|
@@ -179,7 +181,7 @@ gds2palace does **not** launch the solver — run it yourself from the output
 directory:
 
 ```
-cd elmer_model
+cd elmer_model/elmer_thermal_simplest_typicalvalues_data
 ElmerSolver
 ```
 
@@ -192,11 +194,11 @@ rather than the single-threaded `ElmerSolver`.
 
 ### Results
 
-- `thermal_results.vtu` — full 3D temperature field, open in ParaView.
+- `thermal_results_t0001.vtu` — full 3D temperature field, open in ParaView.
 - `thermal_results.dat` — quick min/max temperature summary (plain text).
 
-Both appear in the `elmer_model/` output directory once `ElmerSolver`
-finishes.
+Both appear in the `elmer_model/<model>_data/` output directory once
+`ElmerSolver` finishes.
 
 ## Alternative: using setupThermal
 

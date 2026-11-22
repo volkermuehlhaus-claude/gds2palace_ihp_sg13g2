@@ -9,7 +9,6 @@
     <Variable Name="air_thickness" Value="200.0000" />
     <Variable Name="total_thickness" Value="200.0000" />
     <Variable Name="bulk_thickness" Value="=total_thickness-19.88" />
-    <!-- selects which <Table> below Substrate's ThermalConductivityTable resolves to -->
   </Variables>
   <Materials>
     <Material Name="Activ" Type="Conductor" Conductivity="357141.0" ThermalConductivityTable="Si_vs_T_IHP" Color="00ff00" />

@@ -135,8 +135,9 @@ solver can cause meshing errors or silently wrong results.
 ### Two conductor layers stacked directly on top of each other cause a meshing error. Why?
 
 Two `Type="conductor"` layers must always be separated by a `Type="via"`
-layer. Conductors are meshed as hollow surface shells, not solid volumes
-(see ["Understanding volumes and surfaces created from GDSII"](userguide_md_format/gds2palace_workflow_userguide.md#understanding-volumes-and-surfaces-created-from-gdsii)),
+layer. With the default conductor model, `'surface'`, conductors are meshed
+as hollow surface shells, not solid volumes (`'solve_inside'` and
+`'solve_inside_skin'` mesh them as volumes; see ["Understanding volumes and surfaces created from GDSII"](userguide_md_format/gds2palace_workflow_userguide.md#understanding-volumes-and-surfaces-created-from-gdsii)),
 so two of them touching directly leaves the mesher nothing solid to connect
 through.
 
@@ -151,7 +152,12 @@ maps that layer number to a port. In-plane ports are drawn as rectangles
 zero-width line — a box with zero size in x or y — (`from_layername=...`,
 `to_layername=...`, `direction='z'`).
 [`workflow/palace_line_viaport.py`](../workflow/palace_line_viaport.py) is
-the simplest real example of the latter.
+the simplest real example of the latter. A via port shape with an area (short
+side more than 10 % of the long side) becomes a tube port instead: the four
+side walls of its bounding box, as one port (gds2palace 0.12.0 and newer).
+It is meant for a port that stands for a real conductor, e.g. a copper
+pillar between two chips simulated separately; see
+[`more_examples/chiplet_split_at_pillars`](../more_examples/chiplet_split_at_pillars).
 
 ### Can a port reference an artificial ground plane instead of a real metal layer?
 
@@ -198,7 +204,8 @@ walls" in [the user's guide](userguide_md_format/gds2palace_workflow_userguide.m
 Ports inside the layout get an estimate instead: `combine_extend_snp.py`
 calculates the port's series inductance from its size and removes it. That is
 a geometric correction, not a calibration; for a via port in the de-embedding
-study it was about 45 % too low.
+study it was about 45 % too low. Tube ports are not de-embedded: they stand
+for a conductor, and its inductance belongs to the result.
 
 The `_deembedded` Touchstone file says in its first lines which method was
 used at each port.
@@ -277,15 +284,15 @@ set yourself: gds2palace doesn't change those.
 
 ### Where's the full reference for what goes in the `settings` dict?
 
-There's no single exhaustive table — read [`util_simulation_setup.py`](../workflow/gds2palace/util_simulation_setup.py)
+The code is the complete list — read [`util_simulation_setup.py`](../workflow/gds2palace/util_simulation_setup.py)
 directly for a key you're unsure about (search for `get_optional_setting`
 calls, which show the default). The most commonly used keys: `fstart`/
 `fstop`/`fstep`/`fpoint`/`fdump`, `refined_cellsize`/`refined_cellsize_override`,
 `meshsize_max`, `cells_per_wavelength`, `adaptive_mesh_iterations`/`amr_tol`/
 `amr_max_dof`, `order`, `margin`/`air_around`, `boundary`,
 `merge_polygon_size`, `preview_only`/`no_preview`/`no_gui`. The table in
-[`AGENTS.md`](../AGENTS.md#settings) lists all optional keys with their
-defaults. The [user's
+[`AGENTS.md`](../AGENTS.md#settings) lists the optional keys a model
+script normally uses, with their defaults. The [user's
 guide's `settings` chapter](userguide_md_format/gds2palace_workflow_userguide.md#settings)
 covers the everyday ones with examples.
 
@@ -296,7 +303,7 @@ accurate), order 2 (Palace's default, recommended), order 3 (slowest, most
 accurate, Palace-only — Elmer has no cubic solver). Order 1 is fine for a
 quick sanity check of port setup or layout, not for a number you'd report;
 see the [mesh convergence studies](../more_examples/mesh_convergence/README.md)
-for real order-1-vs-2 error data on five actual structures.
+for real order-1-vs-2 error data on actual structures.
 
 ### Which conductor model should I use: surface, solve_inside or solve_inside_skin?
 
@@ -414,7 +421,10 @@ correct DC/low-frequency resistance for any trace width.
 
 Each of the six outer box faces independently: `ABC` (absorbing, plays the
 role of a radiation boundary), `PEC`, or `PMC`. PML isn't implemented in AWS
-Palace yet.
+Palace yet; `'PML'` is accepted and treated as `'ABC'`. On the four sides
+(xmin, xmax, ymin, ymax), `'PORTWALL'` makes a port wall: a PEC wall at the
+layout edge whose ports are calibrated (see the de-embedding question above;
+Palace only).
 
 ## Mesh
 
@@ -439,8 +449,9 @@ to keep a wide reference layer coarse while refining everything else.
 ### How fine does my mesh actually need to be, and is adaptive mesh refinement worth it?
 
 Don't guess — [`more_examples/mesh_convergence`](../more_examples/mesh_convergence)
-is five worked convergence studies on real IHP SG13G2 structures (a coil, a
-transformer, three different couplers/baluns) with concrete
+is six worked convergence studies on real IHP structures (a coil, a
+transformer, three different couplers/baluns on SG13G2, and a MOM capacitor
+on SG13CMOS5L) with concrete
 mesh-size/order/AMR-iteration recommendations and the actual Max|ΔS| numbers
 behind them; [`palace_summary.py`](../scripts/README.md) can render the
 AMR convergence chart for a run of your own with one command.
@@ -528,8 +539,8 @@ and mesh. If you turned it off to save memory, turn it back on first.
 ### Palace writes CSV. Where does the Touchstone file come from?
 
 `combine_snp` (which runs `combine_extend_snp.py`) scans the output
-directory and converts Palace's or Elmer's raw `port-S.csv` into standard
-`.sNp` Touchstone files, including the de-embedded variant. `run_sim` already
+directory and converts Palace's raw `port-S.csv` (or Elmer's
+`scalar_results`) into standard `.sNp` Touchstone files, including the de-embedded variant. `run_sim` already
 calls this automatically as its last step. See [`scripts/README.md`](../scripts/README.md).
 
 ### What are the `_dc` and `_deembedded` files next to my main result?

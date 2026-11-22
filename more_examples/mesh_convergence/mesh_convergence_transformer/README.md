@@ -110,7 +110,7 @@ mesh_convergence_transformer/
 ├── palace_transformer_imn_amr3.py                # AMR, 2 µm start, 3 iterations
 ├── palace_transformer_imn_skin_mesh{4,2,1}.py    # 'solve_inside_skin' (step 4)
 ├── palace_transformer_imn_filled_mesh2.py        # 'solve_inside' (step 4)
-├── palace_model/palace_transformer_imn_<name>_data/   # mesh, config and full Palace output per run
+├── palace_model/palace_transformer_imn_<name>_data/   # made by the model scripts, not in the repository: mesh, config and Palace output per run
 └── results/
     ├── story_plots.py            # the story_*.png plots and numbers in this report
     ├── analyze_convergence.py    # mixed-mode Sdd ΔS tables (CSV) and Sdd overlays
@@ -121,4 +121,4 @@ mesh_convergence_transformer/
     └── plots/
 ```
 
-Run the scripts from this folder in the `d:\venv\palace` venv to regenerate plots and tables from the archived Touchstone files.
+Run the scripts from this folder in a venv with gds2palace, scikit-rf and matplotlib (`render_labeled_layout.py` also needs gdspy and gds_viewer) to regenerate plots and tables from the archived Touchstone files.

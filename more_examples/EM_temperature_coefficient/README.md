@@ -66,7 +66,8 @@ and `TC1` value from the table above.
 
 [`line_simple_viaport.gds`](line_simple_viaport.gds) is the **standard**
 line-over-ground test structure used elsewhere in this repo
-(`../../workflow/line_simple_viaport.py` / `palace_line_viaport.py`): a
+([`../../workflow/palace_line_viaport.py`](../../workflow/palace_line_viaport.py),
+same GDS file): a
 single straight trace on `TopMetal2` (~15 µm wide, 880 µm long) over a solid
 `Metal1` ground plane, with a via port at each end (`Metal1` → `TopMetal2`,
 layers 201/202) - `Metal1` is a real, physically-modeled ground plane here,
@@ -78,9 +79,11 @@ plane. That hit a known Palace limitation: its thin-metal surface-impedance
 boundary condition is a skin-effect/high-frequency approximation, and for a
 trace whose width is only on the order of its own thickness, the side-wall
 contribution it can't resolve becomes a large fraction of the cross-section,
-giving an inaccurate DC/low-frequency resistance. Not an issue in the
-skin-effect regime at high frequency, or for a normally-proportioned trace
-like this one (~15 µm wide vs. `TopMetal2`'s 3 µm thickness, a ~5:1 ratio).
+giving an inaccurate DC/low-frequency resistance. This error is smaller for
+the ~15 µm wide trace used now (vs. `TopMetal2`'s 3 µm thickness, a ~5:1
+ratio), and it fades once the skin depth is below the metal thickness. The
+thin `Metal1` ground plane has an error of the opposite sign, see "Expected
+resistance vs. temperature" below.
 
 ## Valid temperature range
 
@@ -91,10 +94,11 @@ temperature (26.85 degC, the `sigma(T0)` reference point) and at 125 degC
 
 ## Expected resistance vs. temperature
 
-`TopMetal2`'s trace is 880/15 ≈ 58.7 squares; `Metal1`'s ground plane is
-wide enough that its own contribution to loop resistance is comparatively
-small. Computed directly from the equation above, using `TopMetal2`'s
-actual thickness (3 µm) from the stackup:
+`TopMetal2`'s trace is 880/15 ≈ 58.7 squares. The table below counts this
+trace only, computed directly from the equation above, using `TopMetal2`'s
+actual thickness (3 µm) from the stackup. The return current in the `Metal1`
+ground plane adds to the loop resistance, so a simulated resistance is higher
+than the table:
 
 | Temperature | sigma(TopMetal2) [S/m] | Rsheet [Ω/sq] | R(trace) [Ω] |
 |---|---|---|---|
@@ -107,6 +111,15 @@ low-frequency S21 via `R = 2*Z0*(1-S21)/S21` (Z0 = 50 Ω here), for
 comparison against this table - expect roughly a 37% increase in trace
 resistance (and insertion loss) going from room temperature to 125 degC,
 matching TopMetal2's 3800 ppm/K coefficient over that ~98 K span.
+
+`palace_tcoef.py` uses the default conductor model, `'surface'`. It counts
+the loss of the thin `Metal1` ground plane twice: the plane carries the
+return current on its top face only, but the surface model assumes that both
+faces share it. For the same layout in `palace_line_viaport.py`, the user's
+guide finds the surface model's line resistance 20-40 % above a 2D
+calculation (section "Accuracy at high frequency"). For absolute resistance
+values, set `settings['conductor_model'] = 'solve_inside_skin'`, which is
+within a few percent there.
 
 ![S21 vs. temperature](S21_vs_temperature.png)
 
@@ -124,7 +137,7 @@ so the two runs land in their own `palace_model/..._T<value>C_data/` folder
 instead of overwriting each other:
 
 ```bash
-source /d/venv/palace/Scripts/activate
+# in a venv with gds2palace installed
 python palace_tcoef.py
 ```
 

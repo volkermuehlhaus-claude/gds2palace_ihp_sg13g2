@@ -119,4 +119,4 @@ amr_conformal/
     └── plots/
 ```
 
-Run `python results/story_plots.py` in the `d:\venv\palace` venv to regenerate the plots and numbers from `results/`.
+Run `python results/story_plots.py` in a venv with gds2palace, scikit-rf and matplotlib to regenerate the plots and numbers from `results/`.

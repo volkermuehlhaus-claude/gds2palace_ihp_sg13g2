@@ -28,7 +28,7 @@ Below is an example of command line output while running the Python script:
 
 ## Usage
 
-Acticate the Python venv where you can run gds2palace models. gds2palace must be installed as a Python module: pip install gds2palace. The Palace solver must be available and you must be able to run gds2palace models. If you are not familar with gds2palace, go to the gds2palace documentation [here](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2).
+Acticate the Python venv where you can run gds2palace models. gds2palace must be installed as a Python module: pip install gds2palace. This example also needs gdspy, which gds2palace no longer installs (since 0.11.0): pip install gdspy. The Palace solver must be available and you must be able to run gds2palace models. If you are not familar with gds2palace, go to the gds2palace documentation [here](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2).
 
 In the `synthesize_ihp_inductor_v4.py` script, set your target L value and target frequency, and adjust the search range for w,s and number of turns. Then just run the Python script.
 
@@ -62,7 +62,7 @@ how_many_finetune_steps = 2 # how many iteration of tune-to-target before select
 
 The code snippet below shows where basic EM simulation settings for gds2palace are defined, including the mesh refinement at the edges:
 ```python
-settings['preprocess_gds'] = True
+settings['preprocess_gds'] = True  # obsolete: read_gds() ignores it
 settings['merge_polygon_size'] = 1.5
 
 settings['refined_cellsize'] = 5  # mesh cell size in conductor region

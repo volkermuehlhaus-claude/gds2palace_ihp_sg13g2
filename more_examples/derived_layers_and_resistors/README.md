@@ -34,7 +34,7 @@ its real-world usage example.
 ## Usage
 
 ```bash
-source ~/venv/palace/Scripts/activate
+# in a venv with gds2palace installed
 python palace_resistors_rsil.py
 ```
 

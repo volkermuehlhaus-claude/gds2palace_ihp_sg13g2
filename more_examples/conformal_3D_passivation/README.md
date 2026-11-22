@@ -88,7 +88,7 @@ conformal_3D_passivation/
 ├── Balun_140-170G_RupokDas_with_ports.gds
 ├── SG13G2_200um_3D_passivation.xml             # conformal stackup
 ├── palace_balun_mesh{4,2,1}.py                 # uniform mesh, order 2
-├── palace_model/palace_balun_mesh{4,2,1}_data/ # mesh, config and full Palace output per run
+├── palace_model/palace_balun_mesh{4,2,1}_data/ # made by the model scripts, not in the repository: mesh, config and Palace output per run
 └── results/
     ├── story_plots.py            # the story_*.png plots and numbers in this report
     ├── analyze_convergence.py    # detailed ΔS tables (CSV) and per-S-parameter overlays
@@ -98,4 +98,4 @@ conformal_3D_passivation/
     └── plots/
 ```
 
-`story_plots.py` and `analyze_convergence.py` also read the planar study's Touchstone files from `../mesh_convergence/mesh_convergence_D-band_balun/results/snp/`. Run them from this folder in the `d:\venv\palace` venv.
+`story_plots.py` and `analyze_convergence.py` also read the planar study's Touchstone files from `../mesh_convergence/mesh_convergence_D-band_balun/results/snp/`. Run them from this folder in a venv with gds2palace, scikit-rf and matplotlib.
