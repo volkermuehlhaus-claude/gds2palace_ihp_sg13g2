@@ -122,7 +122,7 @@ This starts a script “run_palace” where you can define in detail how to run 
 
 ![run_sim](./doc/png/run_sim.png)
 
-For workflow development and test, Palace was installed into an apptainer container, as documented in the Palace documentation in chapter “Build using Singularity/Apptainer”. The script “run_palace” was then configured to start Palace inside the palace_014.sif container, which is located in the user’s home directory, and passes one command line argument (the config.json file). The additional parameter -np 16 tells palace to run using 16 threads. This will partition the simulation domain into pieces, each running in a separate process, and the combine results into one output directory.
+For workflow development and test, Palace was installed into an apptainer container, as documented in the Palace documentation in chapter “Build using Singularity/Apptainer”. The script “run_palace” in [scripts/](scripts/) starts Palace inside the palace.sif container, which is located in the user’s home directory, and passes one command line argument (the config.json file). The additional parameter -np 8 tells Palace to run with 8 MPI processes. This partitions the simulation domain into 8 pieces, each solved in a separate process, and then combines the results into one output directory. Adapt the container path and the number of processes to your machine.
 
 ![run_palace](./doc/png/run_palace.png)
 
