@@ -16,7 +16,7 @@ The findings apply to these two coils. Other structures, other stackups and othe
 
 - **Coils:** the 4-turn spiral `ind_frame_with_ports.gds` of the [inductor mesh study](../mesh_convergence/mesh_convergence_inductor/README.md) (about 110 µm across, with a Metal1 ground frame, stackup `SG13G2_200um.xml`), and the L6n2 inductor of the [L6n2 study](../measured_vs_simulated/more_accurate_models_L6n2_v5/README.md) (about 257 × 352 µm, no ground frame, stackup `SG13G2_200um_conformal.xml`), which also has a measurement.
 - **Models:** the small inductor at 1 µm mesh with the surface impedance model; L6n2 at 2 µm mesh with `'solve_inside'` and conformal passivation, the most accurate practical model of the L6n2 study. Ports de-embedded in both.
-- **Boundary:** ABC (second order) on all six sides. `margin` and `air_around` as given per run; a single `air_around` value applies to all six sides, including above the chip and below the substrate.
+- **Boundary:** ABC (second order) on all six sides. `margin` and `air_around` as given per run; a single `air_around` value applies to all six sides. Both stackups contain their own 200 µm air layer above the passivation, which extends by `margin` like the chip. `air_around` follows outside it, so the boundary above the chip is 200 µm further away than `air_around`.
 - **Solver:** every model solved twice, with Palace 0.19.0 and with Palace 0.18.1, on the same mesh and configuration. Models from gds2palace 0.10.7 (the L6n2 side-margin runs from 0.10.2, which gives the same model; the 400 µm run is identical with both).
 - **Execution:** `hpz2`, 16 of 32 cores, November 2026.
 
@@ -47,7 +47,11 @@ The L6n2 coil has no ground frame, so its field reaches further out. The L6n2 st
 
 ## 3. The air above and below matters as much
 
-With `air_around` at 50 µm, the boundary above the chip and below the substrate is only 50 µm away. The right half of the plot keeps the 400 µm margin and raises the air:
+With `air_around` at 50 µm, the boundary is only 50 µm below the substrate. Above the chip it is 250 µm away, because the stackup's own 200 µm air layer comes first:
+
+![Side view of the L6n2 model with 50 µm and 800 µm air around](L6n2/results/plots/model_box.png)
+
+The right half of the plot keeps the 400 µm margin and raises the air:
 
 | Air around (margin 400 µm) | Peak Q, Palace 0.18.1 | Peak Q, Palace 0.19 | Difference | L at 1 GHz |
 |---:|---:|---:|---:|---:|
@@ -60,7 +64,7 @@ With `air_around` at 50 µm, the boundary above the chip and below the substrate
 
 - **With more air, the two versions meet.** At 800 µm they are 0.5% apart.
 - **L rises by 1.2%**, which the side-margin sweep could not show. With 400 µm of air or more, the simulated L is within 0.2% of the measured value.
-- **The boundary must be far in all directions.** Air only above and below (open markers) closes less than a third of the difference. With the air above and below at 50 µm, the side sweep in step 2 looked converged only because the close boundary above dominated.
+- **The boundary must be far in all directions.** More air only above and below (open markers) closes less than a third of the difference. The run with 400 µm of air on all sides closes most of it, and differs from that run only in the air at the sides. The side sweep in step 2 kept 50 µm of air, with the boundary 50 µm below the substrate in every run, so it could not show this.
 - **The cost is small**: 800 µm of air adds 4% unknowns, at about the same solve time.
 
 ## Summary
@@ -92,6 +96,7 @@ simulation_boundary/
     ├── L6n2_with_ports.gds, SG13G2_200um_conformal.xml
     └── results/
         ├── story_boundary.py                          # steps 2 and 3 plot and numbers
+        ├── sketch_model_box.py                        # model_box.png, side view of the model, to scale
         ├── snp/                                       # de-embedded results, both Palace versions
         └── plots/
 ```

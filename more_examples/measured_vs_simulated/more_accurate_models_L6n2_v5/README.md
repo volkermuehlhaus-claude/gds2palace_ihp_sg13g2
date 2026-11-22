@@ -14,7 +14,7 @@ With all four, the best model is within 0.3 % in L, 0.7 % in peak Q and 1.6 % in
 
 > ## What is new in v5
 >
-> - **The simulation boundary is further away, above and below the chip too.** All models keep their 400 µm margin to the side, but now have 800 µm of air around (`settings['air_around']`) instead of 50 µm. The [simulation boundary study](../../simulation_boundary/README.md) showed that the old margin test of this study (v3, v4) looked converged only because the boundary above and below the chip was still close. With the air above and below thin, Q depended on the Palace version by 4 %.
+> - **The simulation boundary is further away, above and below the chip too.** All models keep their 400 µm margin to the side, but now have 800 µm of air around (`settings['air_around']`) instead of 50 µm. The [simulation boundary study](../../simulation_boundary/README.md) showed that the old margin test of this study (v3, v4) looked converged too early: it varied only the side margin, while the thin air kept the boundary 50 µm below the substrate in every run. With the thin air, Q depended on the Palace version by 4 %.
 > - **Palace 0.19 and gds2palace 0.10.7.** Palace 0.19 fixed its second-order absorbing boundary. With the boundary now far away, Palace 0.18.1 and 0.19 agree within 0.5 % for this coil.
 > - **What changed in the results:** in all models, L is about 1.1 % higher, peak Q 2.5 to 3 % higher and the SRF 0.6 % lower than in v4. The best model moved from -3.3 % to -0.7 % in peak Q.
 > - **What stayed:** the comparisons between the model variants, and all conclusions of v4.
@@ -47,7 +47,7 @@ The model ends with absorbing boundaries at some distance from the layout. Earli
 
 The model was then changed: the metal frame was removed, to be more consistent with the measured layout, which has no metal frame. **However, the `margin` was not increased at that moment, it was simply forgotten.** Without the metal frame, the fringing fields around the inductor can spread out much further, and that's what version 3 of the study investigated: the impact of the forgotten distance to the absorbing boundary conditions.
 
-Version 3 added a margin check to the side and chose 400 µm. Version 5 found that the air above and below the chip (50 µm) was too thin as well, and uses 800 µm of air around, see section 1.
+Version 3 added a margin check to the side and chose 400 µm. Version 5 found that the 50 µm of air around the model was too thin as well, and uses 800 µm, see section 1.
 
 ## Conductor model: surface vs. solve_inside
 In the User's Guide, there is a detailed analysis on the limitations of the "surface impedance sheet" loss model that gds2palace uses for modelling conductor layers. Here, we investigate the benefit of meshing the conductors as volumes with their conductivity (`conductor_model = 'solve_inside'`) for such cases. At high frequency, where the skin depth is much smaller than the mesh cells, `'solve_inside'` overestimates the loss. `'solve_inside_skin'` adds thin layers along the conductor faces for that case, see the [conductor model study](../../conductor_models/README.md). For L6n2, with peak Q at 5 GHz, both build the same model.
@@ -82,11 +82,15 @@ Different from the initial version of this study, the **common ground plane** fo
 
 ## 1. Simulation boundary
 
-The model ends at absorbing boundaries: the dielectrics and the substrate extend `settings['margin']` beyond the layout, then `settings['air_around']` of air follows, on all six sides. Without a ground frame, the near field of this coil reaches out by about its own size, and a boundary inside that region truncates the field (lower L) and changes the loss (Q).
+The model ends at absorbing boundaries: the dielectrics and the substrate extend `settings['margin']` beyond the layout, then `settings['air_around']` of air follows, on all six sides. The stackup's own 200 µm air layer above the chip counts as a dielectric here, so above the chip the boundary is 200 µm further out:
+
+![Side view of the L6n2 model with 50 µm and 800 µm air around](../../simulation_boundary/L6n2/results/plots/model_box.png)
+
+Without a ground frame, the near field of this coil reaches out by about its own size, and a boundary inside that region truncates the field (lower L) and changes the loss (Q).
 
 All models of this study use **400 µm margin and 800 µm air around**. How this was chosen is the subject of the [simulation boundary study](../../simulation_boundary/README.md), which uses the 2 µm conformal model of section 4: with this boundary, L is converged and Palace 0.18.1 and 0.19 agree within 0.5 % in peak Q. The larger air costs little, because the region is meshed coarsely: 4 % more unknowns than with 50 µm of air.
 
-Earlier versions of this study had 50 µm of air. Their margin test (v3, v4) varied only the side margin and looked converged at 400 µm, but the close boundary above and below the chip still lowered L by 1.2 % and, with the Palace versions before 0.19, peak Q by 2 %.
+Earlier versions of this study had 50 µm of air. Their margin test (v3, v4) varied only the side margin and looked converged at 400 µm, but the thin air around the model still lowered L by 1.2 % and, with the Palace versions before 0.19, peak Q by 2 %.
 
 ## 2. Via array merging and effective via array cross section
 

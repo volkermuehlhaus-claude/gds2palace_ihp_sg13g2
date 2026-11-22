@@ -8,7 +8,7 @@ We answer this in three steps:
 2. **Refine the mesh with the conformal stackup** and see how quickly it settles.
 3. **Compare the size of both effects**: stackup choice vs. mesh size.
 
-The findings apply to this balun, with these stackups, in this frequency range. The [L6n2 inductor study](../measured_vs_simulated/more_accurate_models_L6n2/README.md) explains the conformal stackup in more detail and compares it against measurement for an inductor.
+The findings apply to this balun, with these stackups, in this frequency range. The [L6n2 inductor study](../measured_vs_simulated/more_accurate_models_L6n2_v5/README.md#4-conformal-passivation-over-topmetal2) explains the conformal stackup in more detail and compares it against measurement for an inductor.
 
 ## The details of this study
 
@@ -25,6 +25,18 @@ The findings apply to this balun, with these stackups, in this frequency range. 
 ![Balun layout with port positions labeled](results/plots/balun_layout_labeled.png)
 
 A folded pair of edge-coupled lines on TopMetal2, 6–7 µm wide with a 2 µm gap, over a Metal3 ground plane. See the [planar study](../mesh_convergence/mesh_convergence_D-band_balun/README.md#0-layout) for details. We use the same balun figures of merit as there: insertion loss −10·log(|S21|² + |S31|²), input match |S11|, and amplitude and phase imbalance between the two outputs.
+
+### Cross section of the coupled lines
+
+The two sketches cut through the middle of the upper coupled section, to scale. The lines and their height above the Metal3 ground plane are the same in both stackups. Only the dielectrics around TopMetal2 differ.
+
+![Cross section with the planar stackup](results/plots/cross_section_planar.png)
+
+In the planar stackup, SiO2 fills the 2 µm gap between the lines and covers them by 1.5 µm, with 0.4 µm passivation (εr = 6.6) on top.
+
+![Cross section with the conformal stackup](results/plots/cross_section_conformal.png)
+
+In the conformal stackup, SiO2 and passivation fill the gap only up to 1.9 µm above the bottom of the lines. 0.6 µm SiO2 side walls line both edges of the gap, so an air slot of 0.8 µm stays open between them, from there up. Each line has its own 1.9 µm SiO2 cover on top.
 
 ## 1. Planar vs. conformal passivation
 
@@ -80,9 +92,10 @@ conformal_3D_passivation/
 └── results/
     ├── story_plots.py            # the story_*.png plots and numbers in this report
     ├── analyze_convergence.py    # detailed ΔS tables (CSV) and per-S-parameter overlays
+    ├── sketch_cross_section.py   # the cross_section_*.png sketches, from the GDS file and both stackup XMLs
     ├── delta_S_table.csv, delta_S_vs_finest.csv, delta_S_vs_planar.csv
     ├── snp/                      # Touchstone files, one per run (_raw = without port de-embedding)
     └── plots/
 ```
 
-Both scripts also read the planar study's Touchstone files from `../mesh_convergence/mesh_convergence_D-band_balun/results/snp/`. Run them from this folder in the `d:\venv\palace` venv.
+`story_plots.py` and `analyze_convergence.py` also read the planar study's Touchstone files from `../mesh_convergence/mesh_convergence_D-band_balun/results/snp/`. Run them from this folder in the `d:\venv\palace` venv.

@@ -10,6 +10,10 @@ settings['conductor_model'] = 'solve_inside_skin'  # volumes with thin layers al
 
 The new `solve_inside_skin` option is an extended filled metal model: additional mesh layers are created near all surfaces, to resolve the skin effect. The thickness of these skin layers is **independent** of `refined_cellsize`: it follows from the skin depth at the highest simulation frequency. Along the surface, the cells keep `refined_cellsize`.
 
+![The three conductor models on a TopMetal2 trace, cross sections to scale](results/plots/sketch_conductor_models.png)
+
+The surface model leaves the conductor hollow: the field stops at its faces. Every face, the side walls included, gets the surface impedance of a layer of the full metal thickness. The two volume models mesh the inside. `'solve_inside_skin'` adds two thin shells along all faces, at 0.4 and 1 skin depth at the highest frequency. A metal thinner than 4 skin depths gets none.
+
 The new `conductor_model` replaces the previous `filled_metals` setting. Scripts with `filled_metals` still work: `False` is read as `'surface'`, `True` as `'solve_inside'`.
 
 ____
@@ -83,6 +87,10 @@ Inductance and coupling hardly depend on the conductor model: all models are wit
 
 The surface model has a second error, of the opposite sign. A thin layer that carries its current on one face only, like a MIM capacitor plate or a ground plane under a line, gets up to twice its real loss.
 
+![The two loss errors of the surface model, cross sections to scale](results/plots/sketch_surface_model_errors.png)
+
+Part (b) of the sketch shows why. Palace gives each face of a conductor of thickness h the surface impedance Zs = (γ/σ)·coth(γh/2). It assumes that both faces share the current. At low frequency, this is 2/(σh) per face, twice the sheet resistance. A ground plane carries the return current only on the face toward the line, so that face alone gets twice the real resistance. The factor stays close to 2 while the layer is thin against the skin depth: for Metal1, 1.9 at 50 GHz and 1.7 at 100 GHz; for the MIM plate, 2 everywhere. Part (a) belongs to section 4.
+
 The MIM-loaded balun has both errors: too little loss in its coils, too much in its MIM plates. Here they cancel, and the surface model is within 0.02 dB of the reference. This cancellation depends on the layout, so it can't be relied on for other structures.
 
 
@@ -94,7 +102,7 @@ On the D-band balun, without MIM capacitors, the surface model is 0.06 dB optimi
 
 The lines run over an ideal ground, so only the TopMetal2 strip has loss. This isolates the error of the thick conductor. The grey band marks ±5 %, the accuracy of this comparison (a 3D line on a finite ground plate against a 2D calculation on an infinite one).
 
-The surface model is too low at every width. At low frequency, its side walls make the trace look wider than it is, so a narrow trace has far too little resistance: 40 % of the real value for the 2 µm line at 1 GHz. At 50-150 GHz, it is still 7-22 % low, more for narrow traces.
+The surface model is too low at every width. At low frequency, its side walls make the trace look wider than it is, so a narrow trace has far too little resistance: 40 % of the real value for the 2 µm line at 1 GHz. Part (a) of the sketch in section 3 shows the reason. While the current fills the whole cross section, the four faces conduct in parallel, as if the trace were w + t wide. That gives w/(w + t) of the real resistance, 40 % for the 2 µm line. At 50-150 GHz, it is still 7-22 % low, more for narrow traces.
 
 `'solve_inside'` is right at low frequency, and up to 16 % high at 30-100 GHz. `'solve_inside_skin'` stays within the ±5 % band, except for the 2 µm line at 150 GHz (5.4 % high). In S21, its attenuation is within 0.03 dB/mm of the converged filled model.
 
@@ -149,6 +157,7 @@ These results come from six SG13G2 structures. Other layouts can show other numb
 | `build_models.py`, `remote_runs.py` | build all models; upload, run (one at a time, 16 processes) and collect on the simulation machine |
 | `study_data.py`, `analyze.py`, `analyze_lines.py`, `analyze_l6n2.py` | accuracy against the references and cost; `results/tables.md` has all numbers |
 | `plots.py` | the figures of this README |
+| `results/sketch_conductor_models.py` | the two sketches (`sketch_*.png`), from the line models' stackup and gds2palace's skin layer depths |
 | `results/` | Palace results of every run (`port-S.csv`, `palace.json`, `run.log`, `config.json`, `port_information.json`), tables and plots |
 
 The references are the `*_solve_inside_skin_mesh1` models (1 µm mesh) in the structure folders, and the line models in `lines/reference/`. The results of the inductor, the transformer and the D-band and 2:1 baluns are port de-embedded before the comparison (as `combine_extend_snp.py` does), references included. The MIM balun results are compared without de-embedding, as in its mesh study.

@@ -12,6 +12,12 @@ for how that mechanism works in general.
 Two via ports (`Metal1` → `Metal2`, layers 201/202) sit at either end of the
 resistor.
 
+The layout holds two more resistors: an rppd (1 µm × 1.66 µm, ports drawn on
+layers 203/204) and an rhigh (2 µm × 1.33 µm, ports on 205/206). The script
+uses only the rsil ports. The other two resistors are in the model as sheets,
+but without ports. To simulate one of them, change the `source_layernum` of
+the two ports in the script.
+
 Palace gives 49.9 Ω for this 2 µm × 13.06 µm rsil, the PDK value is 50.0 Ω.
 That close agreement holds for rsil, not for every resistor: the sheet has the
 drawn size and lacks the PDK's width offset and contact end resistance, so

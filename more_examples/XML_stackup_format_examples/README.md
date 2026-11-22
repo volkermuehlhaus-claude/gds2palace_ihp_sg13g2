@@ -26,6 +26,9 @@ Reader version numbers refer to `util_stackup_reader.__version__` in this repo's
 independent copy of the same reader — check that copy's `__version__`/
 `SUPPORTED_SCHEMA_VERSION` separately if you're targeting the openEMS flow instead.
 
+The two sketches below are drawn by [`sketches.py`](sketches.py) from these XML files
+(output in `png/`).
+
 ## Generation 1 → 2: absolute positioning to Reference-relative positioning
 
 File 01 positions every `<Dielectric>` by stacking `Thickness` values top-down in file
@@ -60,6 +63,13 @@ exclusivity" note in the main reference doc). The practical benefit shows up whe
 edit the stack later: changing a dielectric's `Thickness` (e.g. a different BEOL stack
 height) automatically moves everything referenced to it, with no manual
 re-computation of downstream absolute z-values.
+
+![File 01 and file 02 side by side: the same stack, positioned two ways](png/sketch_A_positioning.png)
+
+Both files give the same stack. In file 01, the `Zmin`/`Zmax` of a Layer are only right
+together with the one offset (red): the drawn layers start 183.75 µm up, where the oxide
+begins. In file 02, each element points to the edge it sits on (blue arrows), so a change
+in one thickness carries through the chain.
 
 ## Generation 2 → 3: `<Variables>` and `"="`-expressions
 
@@ -146,6 +156,13 @@ Changing only `total_thickness` (e.g. via a script's `variable_overrides=` param
 every layer positioned relative to it consistently — confirmed here by overriding
 `total_thickness` to `500`, which correctly moves the `Substrate` dielectric's `zmax`
 from `180` to `480`.
+
+![File 04 at the default total_thickness and with total_thickness overridden to 500](png/sketch_B_thickness.png)
+
+Only the substrate grows. The oxide stack and the air keep their thickness and move up
+with it, and LBE (substrate + EPI) follows. The "20" in `bulk_thickness` stands for
+EPI + SiO2 + Passive, which add up to 19.8803 µm in this file: the chip top ends 0.12 µm
+below `total_thickness`.
 
 ### Using `variable_overrides` from a gds2palace model script
 

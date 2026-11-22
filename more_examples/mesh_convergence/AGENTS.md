@@ -4,12 +4,13 @@ This document is for an AI coding agent asked to run a mesh convergence
 study with gds2palace — i.e. "how fine does the mesh need to be for this
 layout, and is adaptive mesh refinement (AMR) worth it?" — and who has not
 necessarily worked with this repo before. It assumes no prior gds2palace
-knowledge and walks through the method used to produce the five studies
+knowledge and walks through the method used to produce the six studies
 in this folder ([`mesh_convergence_inductor/`](mesh_convergence_inductor/),
 [`mesh_convergence_transformer/`](mesh_convergence_transformer/),
 [`mesh_convergence_D-band_balun/`](mesh_convergence_D-band_balun/),
 [`mesh_convergence_balun2x1/`](mesh_convergence_balun2x1/),
-[`mesh_convergence_balun_mim/`](mesh_convergence_balun_mim/)), so you
+[`mesh_convergence_balun_mim/`](mesh_convergence_balun_mim/),
+[`mesh_convergence_mom_cmos5l/`](mesh_convergence_mom_cmos5l/)), so you
 can reproduce the same kind of study on a new layout. Read [`README.md`](README.md)
 in this folder first for the end-user-facing summary of *what* we found;
 this document is about *how* to produce more studies like it.
@@ -55,7 +56,7 @@ this document is about *how* to produce more studies like it.
   also render the iteration-vs-error convergence chart used in every study
   report here (`amr*_convergence.png`). Use this tool; don't hand-parse
   `palace.json` yourself unless you need a field it doesn't already expose.
-- **The five existing studies are worked templates.** Before writing
+- **The six existing studies are worked templates.** Before writing
   anything from scratch, look at the model scripts, `results/*.py`
   analysis scripts, and `README.md` in whichever study is
   structurally closest to your new layout:
@@ -69,6 +70,8 @@ this document is about *how* to produce more studies like it.
     (each at its own true impedance), a layer needing a fixed mesh size
     independent of the global sweep, or GDS-labeled component values
     (e.g. MIM caps) worth an independent EM check → `mesh_convergence_balun_mim/`
+  - a small capacitor with sub-µm fingers, where the capacitance is the
+    result and FEM order 3 is an alternative to a finer mesh → `mesh_convergence_mom_cmos5l/`
 
   Copying and adapting one of these is almost always faster and less
   error-prone than starting blank.
@@ -423,7 +426,7 @@ Then:
 ### 2.7 Write the report
 
 Write the report as a short, stepwise story, not a data dump. The model
-is [`../measured_vs_simulated/more_accurate_models_L6n2/README.md`](../measured_vs_simulated/more_accurate_models_L6n2/README.md),
+is [`../measured_vs_simulated/more_accurate_models_L6n2_v5/README.md`](../measured_vs_simulated/more_accurate_models_L6n2_v5/README.md),
 and every study README in this folder is a directly readable template.
 Each study also has a `results/story_plots.py` that makes the report's
 plots and prints every number the text quotes; start from the one closest
