@@ -1271,7 +1271,7 @@ settings['iterative'] = False  # True = iterative linear solver, False = direct 
 ```
 
 - `settings['order']` selects the basis function order, same setting as used for Palace. Elmer supports order 1 (linear) and order 2 (quadratic); other values fall back to the order-1 solver recipe.
-- `settings['iterative']` selects between Elmer's direct solver (MUMPS, default, robust for small/medium models) and an iterative solver, which can be more memory-efficient for large models.
+- `settings['iterative']` selects between Elmer's direct solver (MUMPS, default, robust for small/medium models) and an iterative solver, which can be more memory-efficient for large models. Both use MUMPS, which the Elmer Windows build doesn't have: on Windows, `ElmerSolver` stops with "MUMPS solver has not been installed". Run Elmer EM models with an Elmer build that has MUMPS, e.g. on Linux or in WSL.
 - `settings['ELMER_MPI_THREADS']` (optional) enables MPI-parallel solving: gds2palace partitions the mesh with `ElmerGrid` for the given number of MPI processes, and the generated `run_elmer` script (see below) uses `mpirun` to start `ElmerSolver` (`mpiexec` on Windows).
 
 ```python
@@ -1280,12 +1280,16 @@ settings['ELMER_MPI_THREADS'] = 8   # partition mesh and solve using 8 MPI proce
 
 ### Boundary conditions and current limitations
 
-`settings['boundary']` (the six-sided outer simulation boundary, values ABC/PML/PEC/PMC) works the same way as for Palace, including PMC.
+`settings['boundary']` (the six-sided outer simulation boundary, values ABC/PML/PEC/PMC) is read the same way as for Palace, including PMC. An absorbing boundary is of first order in Elmer and of second order in Palace.
 
 A few other Palace features are not yet available in the Elmer EM flow:
 
-- **Sheet resistor layers** (`Type="sheet"` metal paired with a `Resistor` material, as used for on-chip resistors) are not yet supported for Elmer EM output.
-- **Multielement ports** (several shapes on one port layer) and **tube ports** (a via port shape with area) are Palace only.
+- **Sheet resistor layers** (`Type="sheet"` metal paired with a `Resistor` material, as used for on-chip resistors) are not yet supported for Elmer EM output: they are left out of the model.
+- **Multielement ports** (several shapes on one port layer), **tube ports** (a via port shape with area) and **port walls** are Palace only.
+- The **surface conductor model** (the default) gets the impedance of a thick conductor in Elmer, without the metal thickness. Use `'solve_inside'` when the conductor loss matters.
+- **FEM order 3** runs as order 1.
+
+All differences are listed in [EM model limitations with Elmer FEM output](../EM_model_limitations_Elmer.md).
 
 ### Running the Elmer EM simulation and getting S-parameters
 

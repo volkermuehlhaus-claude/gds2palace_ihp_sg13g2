@@ -72,6 +72,7 @@ clone, it is [`workflow/gds2palace/`](workflow/gds2palace/).
 | FAQ, including an "Automation and AI-agent-driven workflows" chapter | [`doc/FAQ.md`](doc/FAQ.md) |
 | Code structure, how the mesh and config are built | [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) |
 | Change log | [`doc/CHANGES.md`](doc/CHANGES.md) |
+| What Elmer EM models don't support or do differently than Palace models | [`doc/EM_model_limitations_Elmer.md`](doc/EM_model_limitations_Elmer.md) |
 | Which stackup file to use | [`XML_stackup/README.md`](XML_stackup/README.md), [`XML_stackup/latest/IHP/README.md`](XML_stackup/latest/IHP/README.md) |
 | XML stackup format reference | [`doc/XML_stackup_format/XML_stackup_format.md`](doc/XML_stackup_format/XML_stackup_format.md) |
 | Derived layers (layers computed by boolean operations) | [`doc/XML_stackup_format/derived_layers.md`](doc/XML_stackup_format/derived_layers.md) |
@@ -414,8 +415,11 @@ Simplify GDS), the original vias are gone and no correction is possible.
 
 - **EM**: `create_elmer(excite_ports, settings)` instead of `create_palace()`.
   Elmer solves every frequency point (no interpolation), always solves all
-  ports, and doesn't support sheet resistor layers. See "Using gds2palace with
-  Elmer FEM for EM simulation" in the user's guide.
+  ports, and doesn't support sheet resistor layers. The Elmer Windows build
+  has no MUMPS, which all Elmer EM solver recipes use, so run Elmer EM models
+  on Linux or in WSL. See "Using gds2palace with Elmer FEM for EM simulation"
+  in the user's guide and the full list in
+  [`doc/EM_model_limitations_Elmer.md`](doc/EM_model_limitations_Elmer.md).
 - **Thermal**: `settings['elmer_thermal'] = True` and
   `simulation_setup.create_elmer_thermal(settings)`. Heat sources and
   constant-temperature boundaries are polygons on extra GDS layers:
