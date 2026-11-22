@@ -420,7 +420,11 @@ Simplify GDS), the original vias are gone and no correction is possible.
   - A constant-temperature boundary uses only the z position of its target
     layer, so a PEC sheet such as `BACKSIDEGND` works.
   - All materials need `ThermalConductivity` in the stackup; the latest IHP
-    stackups have it. In thermal models (gds2palace 0.8.1 and newer), PEC
+    stackups have it.
+  - The thermal solve is iterative by default (BiCGStabl, ILU3). If Elmer
+    stops with `Too many iterations were needed`, set
+    `settings['iterative'] = False` for the direct solver (UMFPACK). For
+    Elmer EM models, `iterative` is `False` by default. In thermal models (gds2palace 0.8.1 and newer), PEC
     sheets are ignored, and PEC volumes use copper's thermal conductivity.
 
   Full guide: [`Elmer_Thermal_Workflow.md`](more_examples/thermal_simulation_using_Elmer/Elmer_Thermal_Workflow.md).

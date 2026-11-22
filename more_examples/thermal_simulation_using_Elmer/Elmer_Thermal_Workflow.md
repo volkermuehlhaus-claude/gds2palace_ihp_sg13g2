@@ -106,7 +106,7 @@ stackups in this repository use; then the EM and the thermal model read their ow
 Target layer for **heat sources** must be **volumes** with non-zero thickness, i.e. Zmax 
 value larger than Zmin.
 
-Target layer for **constant temperature boundaries** is usually a **sheet** layer with zero thickness, i.e. Zmax=Zmin. This is the layer type also defined for sheet resistors in S-Parameter simulation. If the target layer has finite thickness with Zmax different from Zmin, **two** constant temperature boundaries will be created, one at Zmax and the other at Zmin of that target layer.
+Target layer for **constant temperature boundaries** is usually a **sheet** layer with zero thickness, i.e. Zmax=Zmin. This is the layer type also defined for sheet resistors in S-Parameter simulation. A sheet layer needs a resistor material or `PEC`; the example's `BACKSIDEGND` is a `PEC` sheet at the bottom of the substrate. In thermal models, PEC sheets are not meshed, so the layer only gives the z position of the boundary. If the target layer has finite thickness with Zmax different from Zmin, **two** constant temperature boundaries will be created, one at Zmax and the other at Zmin of that target layer.
 
 
 ## 3. Model script settings
@@ -135,6 +135,19 @@ proceed. For unattended/batch runs, set:
 ```python
 settings['no_gui'] = True
 ```
+
+### Optional: linear solver
+
+```python
+settings['iterative'] = True    # default for thermal models: iterative solver
+settings['iterative'] = False   # direct solver (UMFPACK)
+```
+
+Thermal models use Elmer's iterative solver by default: BiCGStabl with an ILU3 preconditioner. It needs much less memory than a direct solver and was faster on the test models. The direct solver (UMFPACK) is the fallback if the iterative solver doesn't converge: Elmer then stops with `Too many iterations were needed`. Both give the same temperatures.
+
+The matrix of a thermal model is hard to solve: the thermal conductivity of metal is several hundred times that of the oxide and passivation, and the mesh has thin, flat elements between thin layers. Before gds2palace 0.12.1, the default used an ILU1 preconditioner, which failed to converge on three of four test models.
+
+The same setting has the opposite default for Elmer **EM** models: there, `iterative` is `False` by default, and the direct solver is MUMPS.
 
 ## 4. Run the script
 

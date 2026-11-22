@@ -436,11 +436,17 @@ def write_elmer_thermal_file (unit,
         vtu_file = '../thermal_results.vtu'
 
         if iterative:
+            # ILU3, not ILU1: the conductivity contrast (metal against passivation, about 500x) and the
+            # ill-shaped tets gmsh leaves between thin layers make the matrix hard to precondition.
+            # In tests on four thermal models, BiCGStabl with ILU1 failed on three of them (also CG, GCR
+            # and IDRS with ILU1, and ILU2 on one), ILU3 converged on all four, mostly faster than ILU1
+            # and the direct solver, with the same temperatures. A run that still doesn't converge stops
+            # after 10000 iterations, within minutes, instead of running for an hour.
             linear_system_block = '''Linear System Solver = Iterative
 Linear System Iterative Method = BiCGStabl
-Linear System Max Iterations = 100000
+Linear System Max Iterations = 10000
 Linear System Convergence Tolerance = 1.0e-7
-Linear System Preconditioning = ILU1'''
+Linear System Preconditioning = ILU3'''
         else:
             # MUMPS is not available in the Windows Elmer build - UMFPACK ships
             # with Elmer on all platforms and needs no extra solver-specific options

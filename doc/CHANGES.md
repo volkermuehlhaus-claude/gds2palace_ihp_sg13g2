@@ -4,6 +4,14 @@ This is an (incomplete) list of changes and new features.
 
 ## 22 November-2026
 
+gds2palace 0.12.1
+
+**Changed behaviour: Elmer thermal models converge more reliably**  
+The iterative solver of thermal models (the default, `settings['iterative'] = True`) uses an ILU3 preconditioner instead of ILU1. The thermal conductivity of metal is several hundred times that of the oxide and passivation, and the mesh has thin, flat elements between thin layers, so the matrix is hard to solve. With ILU1, BiCGStabl did not converge on three of four test models: the thermal example with its backside boundary as a sheet, the same with a finer mesh, and an interposer with two heat sources. ILU3 converged on all four, in 5 to 27 s, faster than the direct solver (UMFPACK, 6 to 122 s), with the same temperatures within 0.01 K. A run that still doesn't converge stops after 10000 instead of 100000 iterations, so the error shows within minutes; `settings['iterative'] = False` then selects the direct solver. Elmer EM models are not changed.
+
+**Fix in the thermal example**  
+`BACKSIDEGND` in `more_examples/thermal_simulation_using_Elmer/SG13_interposer_thermal_typicalvalues.xml` had a Zmax 1 µm below its Zmin. The constant-temperature boundary on it then also made a surface 1 µm below the chip, outside the model, which ElmerGrid removed. It is now a `PEC` sheet at the bottom of the substrate, as in the latest IHP stackups. The temperatures don't change. `Elmer_Thermal_Workflow.md` now describes the solver setting.
+
 gds2palace 0.12.0
 
 **New: tube ports, for via ports that stand for a conductor with a cross section**  

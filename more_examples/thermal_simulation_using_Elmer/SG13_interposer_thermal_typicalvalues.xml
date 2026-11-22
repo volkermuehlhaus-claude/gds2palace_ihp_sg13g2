@@ -76,7 +76,7 @@ several places. -->
       <Layer Name="TopVia1" Type="via" Zmin="2.1200" Zmax="2.9703" Material="TopVia1" Layer="125" />
       <Layer Name="Via4" Type="via" Zmin="1.0900" Zmax="1.6300" Material="Via4" Layer="66" />
       <Layer Name="LBE" Type="via" Zmin="=-substrate_thickness" Zmax="0.0000" Material="AIR" Layer="157" />
-      <Layer Name="BACKSIDEGND" Type="conductor" Zmin="=-substrate_thickness" Zmax="=-substrate_thickness - 1" Material="LOWLOSS" Layer="251" />
+      <Layer Name="BACKSIDEGND" Type="conductor" Zmin="=-substrate_thickness" Zmax="=-substrate_thickness" Material="PEC" Layer="251" />
     </Layers>
   </ELayers>
 </Stackup>
