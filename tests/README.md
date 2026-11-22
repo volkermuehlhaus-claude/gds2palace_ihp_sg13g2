@@ -21,6 +21,8 @@ The same two commands run on GitHub for every push and pull request (`.github/wo
 | `test_low_frequency_point.py` | The frequency that replaces fstart = 0: 10 MHz, higher for a very fine mesh |
 | `test_dc_point.py` | The `_dc` file of `combine_extend_snp.py`: a 0 Hz point in front of the unchanged simulated data |
 | `test_via_merge_ring.py` | Via array merging keeps a ring of vias around an opening (a guard ring) whole |
+| `test_stackup_reader.py` | Stackup reader edge cases: sheets by numeric Zmin/Zmax, negative Substrate Offset, sorted table points, unique layer names |
+| `test_elmer_order.py` | Elmer EM models warn for FEM order 3, which runs with the order-1 recipe |
 
 ## The example tests
 
