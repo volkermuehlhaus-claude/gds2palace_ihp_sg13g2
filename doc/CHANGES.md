@@ -15,6 +15,9 @@ A `<Layer>` whose `Zmin` and `Zmax` are the same number becomes a sheet also whe
 **Changed behaviour, Elmer EM: FEM order 3 runs as order 2**  
 Elmer EM models have solver recipes for order 1 and 2 only, and `settings['order'] = 3`, which is valid for Palace, gave the order-1 recipe without a message. It now runs as order 2, with a warning. The new `doc/EM_model_limitations_Elmer.md` lists this and the other differences between Elmer and Palace models, among them that the Elmer Windows build has no MUMPS, which all Elmer EM solver recipes use. New test: `tests/test_elmer_order.py`.
 
+**Fix: Elmer models without ElmerGrid**  
+Creating an Elmer model (EM or thermal) crashed when `ElmerGrid` was not found: on Linux when it was not on the PATH, on Windows when `ELMER_HOME` was not set. `ElmerGrid` is now looked up in `ELMER_HOME`, then on the PATH. Without it, the model files are written and a note gives the command for the mesh conversion.
+
 **Fix in the thermal example**  
 `BACKSIDEGND` in `more_examples/thermal_simulation_using_Elmer/SG13_interposer_thermal_typicalvalues.xml` had a Zmax 1 µm below its Zmin. The constant-temperature boundary on it then also made a surface 1 µm below the chip, outside the model, which ElmerGrid removed. It is now a `PEC` sheet at the bottom of the substrate, as in the latest IHP stackups. The temperatures don't change. `Elmer_Thermal_Workflow.md` now describes the solver setting.
 
