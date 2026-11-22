@@ -18,6 +18,7 @@
 
 # This is additional code for the gds2palace from to implement the Elmer FEM output option
 import os
+import shutil
 import subprocess
 import platform
 
@@ -582,14 +583,16 @@ def convert_mesh_to_elmer (input_mesh, ELMER_MPI_THREADS=1):
     # clear target mesh directory first, to remove old mesh fragments
     clear_directory(elmer_mesh_path)
 
+    # ElmerGrid: from ELMER_HOME (Windows installer), else from the PATH. Without it, the model files are
+    # still written, only the mesh conversion is skipped (before, a missing ElmerGrid or ELMER_HOME crashed here)
     ElmerGrid = ""
-
-    if platform.system() == "Windows":
-        Elmer_home = os.environ.get("ELMER_HOME")
-        if Elmer_home != '':
-            ElmerGrid  = os.path.join(Elmer_home, "bin", "ElmerGrid.exe")
-    else: 
-        ElmerGrid = "ElmerGrid"
+    Elmer_home = os.environ.get("ELMER_HOME")
+    if Elmer_home:
+        candidate = os.path.join(Elmer_home, "bin", "ElmerGrid.exe" if platform.system() == "Windows" else "ElmerGrid")
+        if os.path.isfile(candidate):
+            ElmerGrid = candidate
+    if ElmerGrid == "":
+        ElmerGrid = shutil.which("ElmerGrid") or ""
 
     
     if ElmerGrid != "":
@@ -628,7 +631,8 @@ def convert_mesh_to_elmer (input_mesh, ELMER_MPI_THREADS=1):
             run_elmergrid(cmd, f"splitting the Elmer mesh into {ELMER_MPI_THREADS} partitions")
 
     else:
-        print('Location of ElmerGrid executable unknown (set ELMER_HOME), cannot run mesh conversion automatically.')
+        print('ElmerGrid not found (set ELMER_HOME or put ElmerGrid on the PATH), the mesh was not converted '
+              'to Elmer format. Run: ElmerGrid 14 2 <model>.msh -autoclean -out mesh')
 
 
 def run_elmergrid (cmd, what):
