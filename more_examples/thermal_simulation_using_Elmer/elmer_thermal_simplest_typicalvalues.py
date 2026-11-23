@@ -70,6 +70,8 @@ settings['meshsize_max'] = 100  # microns, override cells_per_wavelength
 
 settings['elmer_thermal'] = True # create all metals as volumes, enable Elmer output (not ready for thermal, manual edits required)
 
+# settings['heat_flux_output'] = True  # also write heat flux and temperature gradient to the result file
+
 # settings['no_preview']=True  # swkip preview of outlines, show meshed metals only
 
 # Thermal source and constant temperature boundary from GDSII Data, polygon geometry from specified special layer

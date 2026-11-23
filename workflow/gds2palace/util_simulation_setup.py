@@ -18,10 +18,13 @@
 
 # -*- coding: utf-8 -*-
 
-__version__ = "1.23.0"
+__version__ = "1.24.0"
 
 # solvers where settings['fill_factor_correction'] is applied (checked by setupEM)
 FILL_FACTOR_CORRECTION_SOLVERS = ("palace", "elmer", "elmer_thermal")
+
+# Elmer thermal models understand settings['heat_flux_output'] (checked by setupEM)
+THERMAL_HEAT_FLUX_OUTPUT = True
 
 # Palace linear solver settings this version understands (checked by setupEM)
 PALACE_LINEAR_SOLVER_SETTINGS = ("complex_coarse_solve", "solver_maxits", "solver_tol")
@@ -1635,6 +1638,8 @@ def create_model (excite_ports, settings):
     # thermal solve defaults to iterative (BiCGStabl); set settings['iterative']=False for
     # a direct solver instead (UMFPACK - MUMPS is not available on Windows Elmer builds)
     elmer_thermal_iterative = get_optional_setting (settings, "iterative", True)
+    # Elmer thermal: also write heat flux and temperature gradient (per body) to the result file
+    heat_flux_output = get_optional_setting (settings, "heat_flux_output", False)
     if elmer_thermal:
         elmer = True
         filled_metals = True # solid metal volumes for thermal
@@ -3200,7 +3205,8 @@ def create_model (excite_ports, settings):
                                                     Elmer_boundaries,
                                                     Elmer_body_forces,
                                                     Elmer_thermal_boundaryconditions,
-                                                    iterative=elmer_thermal_iterative)
+                                                    iterative=elmer_thermal_iterative,
+                                                    heat_flux_output=heat_flux_output)
 
 
 

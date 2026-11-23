@@ -1413,8 +1413,13 @@ Results appear in the same directory:
 
 - `thermal_results_t0001.vtu` — full 3D temperature field, open in ParaView.
 - `thermal_results.dat` — quick min/max temperature summary (plain text).
+- `thermal_heatflow.dat` — the heat flow through each constant-temperature boundary, in W; Elmer writes heat that leaves the model as a negative number (gds2palace 0.13.0 and newer).
 
-If `settings['ELMER_MPI_THREADS']` is set to more than 1, gds2palace also partitions the mesh for you; run `ElmerSolver_mpi` with your MPI launcher of choice instead of the single-threaded `ElmerSolver`.
+If `settings['ELMER_MPI_THREADS']` is set to more than 1, gds2palace also partitions the mesh for you; run `ElmerSolver_mpi` with your MPI launcher of choice instead of the single-threaded `ElmerSolver`. The `.vtu` result is then one file per process, tied together by `thermal_results_t0001.pvtu`; the `.dat` files are summed over the processes.
+
+`python -m gds2palace.scripts.thermal_summary <path>` prints the min/max temperature and a table of the heat flow per boundary, with its share of the input power. The heat flow adds up to the input power on any mesh (it comes from the residual of the FEM equations), so it shows where the heat goes, not whether the mesh is fine enough.
+
+**settings['heat_flux_output']:** also write the heat flux (W/m²) and the temperature gradient (K/m) as vector arrays `temperature flux` and `temperature grad` to the result file. They are computed per element and averaged within each body, so they keep their jumps at material interfaces: the heat flux normal to an interface is continuous, the gradient jumps by the conductivity ratio. The nodes on an interface appear once for each body in the result file. Default is False. See "Heat flux and temperature gradient" in [`Elmer_Thermal_Workflow.md`](../../more_examples/thermal_simulation_using_Elmer/Elmer_Thermal_Workflow.md).
 
 ### Using setupThermal instead of writing Python code
 

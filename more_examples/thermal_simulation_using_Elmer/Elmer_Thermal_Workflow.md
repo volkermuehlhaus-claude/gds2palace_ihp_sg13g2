@@ -151,6 +151,14 @@ The matrix of a thermal model is hard to solve: the thermal conductivity of meta
 
 The same setting has the opposite default for Elmer **EM** models: there, `iterative` is `False` by default, and the direct solver is MUMPS.
 
+### Optional: heat flux and temperature gradient
+
+```python
+settings['heat_flux_output'] = True   # default False: temperature only
+```
+
+The result file then also holds the heat flux (W/m²) and the temperature gradient (K/m), both as vectors. See [Heat flux and temperature gradient](#heat-flux-and-temperature-gradient) below. It costs a few seconds of run time and makes the result file about 50 % larger.
+
 ## 4. Run the script
 
 ```
@@ -168,7 +176,7 @@ then automatically converts the mesh to Elmer's native format via
 |---|---|
 | `<basename>.msh` | Intermediate gmsh mesh |
 | `mesh/` | Elmer-native mesh (produced by `ElmerGrid`) |
-| `case.sif` | Elmer Solver Input File: steady-state Heat Equation, materials, body (volume) definitions, the heat source as a volumetric Body Force, and the constant-temperature Boundary Condition |
+| `case.sif` | Elmer Solver Input File: steady-state Heat Equation, materials, body (volume) definitions, the heat source as a volumetric Body Force, the constant-temperature Boundary Condition, and the result output (temperature, min/max, heat flow per boundary; optionally heat flux and temperature gradient) |
 | `ELMERSOLVER_STARTINFO` | Tells `ElmerSolver` to use `case.sif` |
 
 It's worth a quick look at the generated `case.sif` before solving,
@@ -195,10 +203,83 @@ rather than the single-threaded `ElmerSolver`.
 ### Results
 
 - `thermal_results_t0001.vtu` — full 3D temperature field, open in ParaView.
+  With MPI, one file per process and `thermal_results_t0001.pvtu`, which
+  ties them together: open that one.
 - `thermal_results.dat` — quick min/max temperature summary (plain text).
+- `thermal_heatflow.dat` — the heat flow through each constant-temperature
+  boundary, in W (gds2palace 0.13.0 and newer). The column names are in
+  `thermal_heatflow.dat.names`.
 
-Both appear in the `elmer_model/<model>_data/` output directory once
-`ElmerSolver` finishes.
+All appear in the `elmer_model/<model>_data/` output directory once
+`ElmerSolver` finishes. With MPI, the `.dat` files are summed over the
+processes (gds2palace 0.13.0 and newer; before, each process wrote its own
+`thermal_results.dat.0`, `.1`, ... and there was no `thermal_results.dat`).
+
+To print a summary of these results:
+
+```
+python -m gds2palace.scripts.thermal_summary elmer_model/elmer_thermal_simplest_typicalvalues_data
+```
+
+In a clone of the repository, `python scripts/thermal_summary.py <path>` does
+the same. Given a folder, it searches it for Elmer thermal models.
+
+```
+Elmer thermal results: ...\elmer_thermal_simplest_typicalvalues_data
+  Min temperature : 298.00 K
+  Max temperature : 346.19 K
+  Input power     : 0.65 W
+
+  Heat flow through the constant-temperature boundaries (negative: heat flows into the model)
+  Boundary           T (K)  Heat out (W)    Share
+  constanttemp_202  298.00        0.6501  100.0 %
+  Total                           0.6501  100.0 %
+```
+
+### Heat flow through the constant-temperature boundaries
+
+Each constant-temperature boundary removes heat from the model, or adds heat
+if it is hotter than its surroundings. `thermal_heatflow.dat` gives this heat
+flow for each boundary. With a single heat sink, it takes all the input power.
+With several, the table shows where the heat goes, e.g. how much leaves through
+the back side and how much through a heat sink on top.
+
+The sign tells the direction. In `thermal_heatflow.dat`, Elmer writes heat that
+leaves the model as a negative number; `thermal_summary` and setupThermal show
+"heat out" with the sign reversed. In a test with two boundaries, a backside
+sink at 298 K took 1.08 W out of the model and a top sink at 310 K put 0.43 W
+in, for a 0.65 W heat source.
+
+**This is not a check of the mesh.** The heat flow is computed from the
+residual of the FEM equations at the boundary nodes. These residuals add up to
+the input power on any mesh, however coarse, so the total always matches. To
+find out whether the mesh is fine enough, rerun the model with a smaller
+`refined_cellsize` and compare the temperatures.
+
+### Heat flux and temperature gradient
+
+With `settings['heat_flux_output'] = True`, the result file also has the
+arrays `temperature flux` (heat flux density, W/m²) and `temperature grad`
+(temperature gradient, K/m). Both are 3D vectors: ParaView or setupEM's field
+viewer show their magnitude and can draw arrows.
+
+At an interface between two materials, the two quantities behave differently.
+The heat flux normal to the interface is the same on both sides: all heat that
+leaves one material enters the other. The temperature gradient normal to the
+interface jumps by the ratio of the two thermal conductivities: under a heat
+source on oxide over silicon, the gradient in the oxide is about 150 times
+the gradient in the silicon. Along the interface, it is the other way round:
+the gradient is continuous, and the flux jumps.
+
+So gds2palace computes both quantities per element and averages them only
+within each body (each material region). At an interface, the result file has
+two values at the same place, one for each body. Averaging across the
+interface instead would smear these jumps over several elements. On the
+example, that put the gradient in the silicon next to the oxide 17 times too
+high, over several microns.
+
+For this, the nodes on an interface are duplicated in the result file, once
+for each body. The temperature is the same at both copies.
 
 ## Alternative: using setupThermal
 

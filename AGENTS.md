@@ -298,6 +298,7 @@ is the complete list, search for `get_optional_setting`):
 | `deembedding` | (on) | `'none'`: `combine_snp` writes only the raw result, no `_deembedded` file |
 | `iterative` | `False` for Elmer EM, `True` for Elmer thermal | Elmer linear solver: iterative or direct (EM: MUMPS, thermal: UMFPACK) |
 | `ELMER_MPI_THREADS` | `1` | Elmer: number of MPI processes; the mesh is partitioned for them and `run_elmer` starts `mpirun`/`mpiexec` |
+| `heat_flux_output` | `False` | Elmer thermal: also write heat flux (W/m²) and temperature gradient (K/m), per body, to the result file |
 
 **Unknown keys are silently ignored.** A typo such as `settings['nogui']`
 leaves the default in place: with `no_gui` at `False`, gmsh opens a window and
@@ -449,6 +450,13 @@ Simplify GDS), the original vias are gone and no correction is possible.
     `settings['iterative'] = False` for the direct solver (UMFPACK). For
     Elmer EM models, `iterative` is `False` by default. In thermal models (gds2palace 0.8.1 and newer), PEC
     sheets are ignored, and PEC volumes use copper's thermal conductivity.
+  - Results (gds2palace 0.13.0 and newer): `thermal_results.dat` (min/max T),
+    `thermal_heatflow.dat` (heat flow per constant-temperature boundary, in W,
+    negative = out of the model), `thermal_results*.vtu` (with
+    `settings['heat_flux_output'] = True` also the vectors `temperature flux`
+    and `temperature grad`, per body). `python -m gds2palace.scripts.thermal_summary <path>`
+    prints them. The heat flow always adds up to the input power, so it is
+    no mesh check: for that, compare with a run with a finer mesh.
 
   Full guide: [`Elmer_Thermal_Workflow.md`](more_examples/thermal_simulation_using_Elmer/Elmer_Thermal_Workflow.md).
 

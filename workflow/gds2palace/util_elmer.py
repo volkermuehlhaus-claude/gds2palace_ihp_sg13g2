@@ -430,7 +430,13 @@ def write_elmer_thermal_file (unit,
                                 Elmer_boundaries,
                                 Elmer_body_forces,
                                 Elmer_thermal_boundaryconditions,
-                                iterative=True):
+                                iterative=True,
+                                heat_flux_output=False):
+    """Write the case.sif of an Elmer thermal model.
+
+    Always written: temperature (thermal_results*.vtu), its min/max (thermal_results.dat) and the heat flow through
+    each constant-temperature boundary (thermal_heatflow.dat, in W, negative = out of the model).
+    heat_flux_output: also write the heat flux (W/m^2) and the temperature gradient (K/m), per body."""
 
     with open(elmer_thermal_file, "w") as f:
 
@@ -465,6 +471,69 @@ Linear System Direct Method = umfpack'''
 Nonlinear System Max Iterations = 50
 Nonlinear System Convergence Tolerance = 1.0e-6'''
 
+        # Heat flow through each constant-temperature boundary: the sum of the nodal heat loads (the residual of the
+        # heat equation, "temperature loads") on its nodes, one SaveScalars mask per boundary. These sums balance the
+        # input power on any mesh, so they show where the heat goes, not how accurate the mesh is.
+        # Parallel Reduce: with MPI, one file summed over the partitions instead of a file per partition.
+        heatflow_block = ''
+        if Elmer_thermal_boundaryconditions:
+            items = ''
+            for n, thermal_bc in enumerate(Elmer_thermal_boundaryconditions):
+                items += (f'  Variable {n+1} = Temperature Loads\n'
+                          f'  Operator {n+1} = boundary sum\n'
+                          f'  Mask Name {n+1} = String "{heatflow_mask(thermal_bc)}"\n')
+            heatflow_block = f'''
+Solver {{n}}
+  Equation = SaveHeatFlow
+  Procedure = "SaveData" "SaveScalars"
+  Filename = "../thermal_heatflow.dat"
+  Parallel Reduce = Logical True
+{items}End
+'''
+
+        # Heat flux and temperature gradient, opt-in. The gradient of a linear element is constant in the element, and
+        # at a material interface the gradient jumps by the conductivity ratio (the normal heat flux is continuous, the
+        # tangential flux jumps the other way). So the flux solver computes them per element (Discontinuous Galerkin),
+        # and the output averages them within each body: nodes on an interface get one value per body. Averaging at
+        # the nodes across bodies instead smears these jumps over several microns (tested on the thermal example:
+        # the gradient in Si next to the oxide 17x too high). This needs ResultOutputSolver (Discontinuous Bodies)
+        # instead of Post File; the files keep their names.
+        flux_blocks = []
+        if heat_flux_output:
+            flux_blocks.append('''
+Solver {n}
+  Equation = "HeatFlux"
+  Procedure = "FluxSolver" "FluxSolver"
+  Target Variable = Temperature
+  Flux Coefficient = "Heat Conductivity"
+  Calculate Flux = Logical True
+  Calculate Grad = Logical True
+  Discontinuous Galerkin = Logical True
+  Linear System Solver = Iterative
+  Linear System Iterative Method = CG
+  Linear System Preconditioning = ILU0
+  Linear System Max Iterations = 2000
+  Linear System Convergence Tolerance = 1.0e-10
+End
+''')
+            flux_blocks.append('''
+Solver {n}
+  Exec Solver = After Simulation
+  Equation = "ResultOutput"
+  Procedure = "ResultOutputSolve" "ResultOutputSolver"
+  Output File Name = "../thermal_results"
+  Vtu Format = Logical True
+  Discontinuous Bodies = Logical True
+  Save Geometry Ids = Logical True
+End
+''')
+
+        extra_blocks = ([heatflow_block] if heatflow_block else []) + flux_blocks
+        extra_solvers = ''.join(block.format(n=3 + i) for i, block in enumerate(extra_blocks))
+        n_solvers = 2 + len(extra_blocks)
+        active_solvers = f'Active Solvers({n_solvers}) = ' + ' '.join(str(i) for i in range(1, n_solvers + 1))
+        post_file_line = '' if heat_flux_output else f'Post File = {vtu_file}\n'
+
         header1=f'''
 Check Keywords "warn"
 
@@ -480,34 +549,35 @@ Coordinate System = String "Cartesian"
 Coordinate Scaling = Real 1e-6
 Use Mesh Names = Logical True
 Mesh Levels = 1
-Post File = {vtu_file}
-End
+{post_file_line}End
 
 
 Equation 1
 Name = "ThermalPhysics"
-Active Solvers(2) = 1 2
+{active_solvers}
 End
 
 Solver 1
 Equation = Heat Equation
 Procedure = "HeatSolve" "HeatSolver"
 Variable = Temperature
+Calculate Loads = Logical True
 {linear_system_block}
 Steady State Convergence Tolerance = 1.0e-5
-End        
+End
 
 Solver 2
   Equation = SaveScalars
   Procedure = "SaveData" "SaveScalars"
 
   Filename = "../thermal_results.dat"
+  Parallel Reduce = Logical True
 
   Variable 1 = Temperature
   Operator 1 = min
   Operator 2 = max
 End
-'''
+{extra_solvers}'''
 
         f.write(header1 + "\n")
 
@@ -550,8 +620,15 @@ End
             item = f'Boundary Condition {n+1}\n'
             item = item + f'   Name = "{thermal_bc["name"]}"\n'
             item = item + f'   Temperature = Real {thermal_bc["temp"]:2f}\n'
+            item = item + f'   {heatflow_mask(thermal_bc)} = Logical True\n'
             item = item + "End\n"
             f.write(item + '\n')
+
+
+def heatflow_mask(thermal_bc):
+    """SaveScalars mask of a constant-temperature boundary, for its heat flow. It also names the column in
+    thermal_heatflow.dat.names ("... over bc heatflow_constanttemp_202")."""
+    return f'heatflow_{thermal_bc["name"]}'
 
 
 #------------------------- mesh conversion *.msh to Elmer mesh -------------------------

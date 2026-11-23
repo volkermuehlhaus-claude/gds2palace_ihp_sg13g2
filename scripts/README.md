@@ -66,6 +66,14 @@ python -m gds2palace.scripts.combine_extend_snp
 
 As above, `combine_extend_snp` searches the current directory and its subdirectories for results. In Python, `utilities.get_scripts_dir()` returns the folder with both files.
 
+## Elmer thermal results
+
+**thermal_summary.py** prints the results of Elmer thermal models: minimum and maximum temperature, input power, and the heat flow through each constant-temperature boundary with its share of the input power (models from gds2palace 0.13.0 and newer). Give it a `<model>_data` directory, or a folder that it searches for Elmer thermal models; without an argument, it searches the current directory. It needs only the Python standard library, and exits with a nonzero status if a model has no results yet. With the pip package (gds2palace 0.13.0 and newer):
+
+```
+python -m gds2palace.scripts.thermal_summary [path]
+```
+
 ## Other Utilities
 
 **build_pypi_readme.py** regenerates `README_pypi.md` at the repo root from `README.md`, rewriting relative `./doc/...` links to absolute GitHub URLs so images render on the PyPI package page. Run this before `python -m build`, from the repo root: `python scripts/build_pypi_readme.py`

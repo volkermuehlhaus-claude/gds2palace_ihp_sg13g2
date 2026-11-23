@@ -2,6 +2,19 @@
 
 This is an (incomplete) list of changes and new features.
 
+## 23 November-2026
+
+gds2palace 0.13.0
+
+**New, Elmer thermal: heat flux and temperature gradient**  
+`settings['heat_flux_output'] = True` also writes the heat flux (W/m²) and the temperature gradient (K/m) to the result file, as the vector arrays `temperature flux` and `temperature grad`. They are computed per element and averaged within each body, not across bodies. At an interface between two materials, the normal heat flux is continuous and the normal gradient jumps by the conductivity ratio, and a nodal average smears that jump over several elements. In the thermal example, a nodal average put the gradient in the silicon next to the oxide under the heat source 17 times too high, while the per-body values matched the exact element values. The nodes on an interface therefore appear once for each body in the result file. The option costs a few seconds and makes the result file about 50 % larger. Default is False: the result file is then written as before.
+
+**New, Elmer thermal: heat flow per constant-temperature boundary**  
+Every thermal model now writes `thermal_heatflow.dat`: the heat flow through each constant-temperature boundary, in W, negative for heat that leaves the model. It shows where the heat goes when a model has several heat sinks. It comes from the residual of the FEM equations at the boundary nodes, so the heat flows add up to the input power on any mesh: it is not a check of the mesh. The new script `thermal_summary.py` (`python -m gds2palace.scripts.thermal_summary <path>`) prints the min/max temperature and the heat flow per boundary with its share of the input power.
+
+**Fix, Elmer thermal with MPI: one `thermal_results.dat`**  
+With `ELMER_MPI_THREADS` above 1, each process wrote its own `thermal_results.dat.0`, `.1`, ..., and there was no `thermal_results.dat` for the min/max temperature. The values are now combined over the processes into one file.
+
 ## 22 November-2026
 
 gds2palace 0.12.1
