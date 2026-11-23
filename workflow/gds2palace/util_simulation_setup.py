@@ -18,7 +18,7 @@
 
 # -*- coding: utf-8 -*-
 
-__version__ = "1.24.0"
+__version__ = "1.24.1"
 
 # solvers where settings['fill_factor_correction'] is applied (checked by setupEM)
 FILL_FACTOR_CORRECTION_SOLVERS = ("palace", "elmer", "elmer_thermal")
@@ -3541,7 +3541,12 @@ def create_model (excite_ports, settings):
         try:
             gmsh.model.mesh.generate(3)
             if volumes_without_mesh():
-                print('3D meshing with Delaunay failed, retrying with HXT algorithm')
+                # HXT's optimization ("Improving ... tet." lines) removes the zero-volume elements between thin
+                # layers of large area. It can run for minutes with an almost constant element count, which
+                # looks like a hang; limiting it left zero-volume elements in a test (heat spreader with
+                # stacked 720 um metal plates: 255 s with gmsh's default, 2 bad elements with a threshold of 0.02).
+                print('3D meshing with Delaunay failed, retrying with HXT algorithm.\n'
+                      'With thin layers of large area in the model, its optimization step can take several minutes.')
                 gmsh.model.mesh.clear()
                 gmsh.option.setNumber("Mesh.Algorithm3D", 10)
                 gmsh.model.mesh.generate(3)

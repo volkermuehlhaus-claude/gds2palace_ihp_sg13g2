@@ -15,6 +15,9 @@ Every thermal model now writes `thermal_heatflow.dat`: the heat flow through eac
 **Fix, Elmer thermal with MPI: one `thermal_results.dat`**  
 With `ELMER_MPI_THREADS` above 1, each process wrote its own `thermal_results.dat.0`, `.1`, ..., and there was no `thermal_results.dat` for the min/max temperature. The values are now combined over the processes into one file.
 
+**Message when 3D meshing falls back to HXT**  
+When gmsh's Delaunay algorithm fails and gds2palace retries with HXT, the message now says that the optimization step can take several minutes for models with thin layers of large area. In such a model (stacked metal plates of 720 µm with 0.5 µm of oxide between them), that step ran for about 4 minutes with an almost constant element count and looked like a hang. It is needed: with a shorter optimization, elements of zero volume were left in the mesh.
+
 ## 22 November-2026
 
 gds2palace 0.12.1
