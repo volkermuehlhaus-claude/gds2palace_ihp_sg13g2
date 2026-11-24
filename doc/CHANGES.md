@@ -6,6 +6,12 @@ This is an (incomplete) list of changes and new features.
 
 gds2palace 0.13.0
 
+**Fix, Elmer thermal: constant-temperature boundary with several polygons**  
+A constant-temperature boundary drawn as more than one polygon on its GDS layer kept only the last polygon; the others silently had no boundary. Found on a resistor with both terminals held at 300 K on one layer: only one of them was. All polygons now get the boundary.
+
+**Elmer thermal: touching bodies are allowed**  
+A thermal model now accepts two metal or via bodies that share a face, e.g. a contact passing through resistor poly drawn on `HEAT_RESISTOR`, or a via touching a metal at its side wall: heat crosses the shared face. Before, this stopped with "touches another conductor layer", as it still does for EM models. Models that meshed before give byte-identical meshes. This lets a thermal model carry a resistor's unheated poly heads on `HEAT_RESISTOR` (see "Heat source targets" in `XML_stackup/latest/IHP/README.md`).
+
 **New, Elmer thermal: heat flux and temperature gradient**  
 `settings['heat_flux_output'] = True` also writes the heat flux (W/m²) and the temperature gradient (K/m) to the result file, as the vector arrays `temperature flux` and `temperature grad`. They are computed per element and averaged within each body, not across bodies. At an interface between two materials, the normal heat flux is continuous and the normal gradient jumps by the conductivity ratio, and a nodal average smears that jump over several elements. In the thermal example, a nodal average put the gradient in the silicon next to the oxide under the heat source 17 times too high, while the per-body values matched the exact element values. The nodes on an interface therefore appear once for each body in the result file. The option costs a few seconds and makes the result file about 50 % larger. Default is False: the result file is then written as before.
 

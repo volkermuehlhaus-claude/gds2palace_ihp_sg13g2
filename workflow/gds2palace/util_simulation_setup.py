@@ -1335,7 +1335,9 @@ def add_thermal_boundaries (allpolygons, metals_list, thermal_objects):
                                 gmsh.model.setEntityName(dim=2,tag=surfacetag_top, name=f'constanttemp_{object.source_layernum}')
                                 surface_tags.append(surfacetag_top)
 
-                        tags_created_2D['source_'+str(object.source_layernum)]=surface_tags
+                        # collect the faces of every polygon on this layer: assigning the list here kept only the
+                        # last polygon's faces, and the other polygons silently got no boundary
+                        tags_created_2D.setdefault('source_'+str(object.source_layernum), []).extend(surface_tags)
 
 
     gmsh.model.occ.synchronize()
@@ -2269,10 +2271,12 @@ def create_model (excite_ports, settings):
     # needs "External": true (Zs -> 1/(sigma h)). A lost side wall or end face leaves both main faces: no change there.
     one_face_conductor_groups = set()
 
-    # Elmer thermal: heat sources last. A heat source takes the material of its target layer and may lie inside
-    # a conductor of that layer (e.g. an npn emitter in Activ), so a face it shares with that conductor is an
-    # interior face, not two conductors touching. Thermal surface groups are only for viewing (boundary
-    # conditions come from the constanttemp groups), so that face simply stays in the conductor's group.
+    # Elmer thermal: a face that two metal or via bodies share is an interior face, which heat simply crosses; the
+    # "conductors must not touch" rule is about EM models. Examples: a heat source inside a conductor of its target
+    # layer (an npn emitter in Activ), a contact passing through poly drawn on HEAT_RESISTOR (the stackup's Cont
+    # starts at Activ level), a via touching a metal at its side wall. Thermal surface groups are only for viewing
+    # (boundary conditions come from the constanttemp groups), so such a face stays in the first group. Heat
+    # sources go last, so a face they share stays with the conductor around them.
     def is_heat_source(key):
         return elmer_thermal and key.startswith("source_")
 
@@ -2313,8 +2317,8 @@ def create_model (excite_ports, settings):
                     if tag not in already_assigned_tags:
                         already_assigned_tags.append(tag)
                         new_tags.append(tag)
-                    elif is_heat_source(key):
-                        # shared with the conductor around the heat source, see above
+                    elif elmer_thermal:
+                        # an interior face of a thermal model, see above
                         continue
                     else:
                         print("ERROR in XML stackup definition:")

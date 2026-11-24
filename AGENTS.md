@@ -136,8 +136,9 @@ clone, it is [`workflow/gds2palace/`](workflow/gds2palace/).
   Unknown variable names stop with an error.
 - Layer types: `conductor` (metal), `via`, `sheet` (zero thickness, e.g.
   resistors and ground sheets), `dielectric` (a brick drawn in GDSII). **Two
-  conductor layers must never touch directly**; there is always a via layer
-  between them.
+  conductor layers must never touch directly** in an EM model; there is always
+  a via layer between them. Thermal models accept touching bodies (heat crosses
+  the shared face).
 - Reserved material names: `PEC` (ideal conductor, no `<Materials>` entry
   needed) and `AIR`.
 - Extra layers in the latest IHP stackups:
@@ -153,7 +154,10 @@ clone, it is [`workflow/gds2palace/`](workflow/gds2palace/).
     resistor's Metal1 heads and use the PDK model in the circuit instead.
   - `HEAT_TRANSISTOR` (GDS 320) and `HEAT_RESISTOR` (GDS 321): target layers
     for heat sources in thermal models (the top 40 nm of Activ; a 0.16 µm
-    polysilicon body above the Activ level). Nothing is drawn on them.
+    polysilicon body above the Activ level). Nothing is drawn on them in EM
+    models; in a thermal model a resistor's unheated poly heads may be drawn
+    on `HEAT_RESISTOR`, without the contact footprints (see "Heat source
+    targets" in [`XML_stackup/latest/IHP/README.md`](XML_stackup/latest/IHP/README.md)).
 
   These layers only appear in the model if the layout has shapes on them (or,
   for derived layers, on their source layers).
