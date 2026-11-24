@@ -51,6 +51,16 @@ Using parameters for final chip height and air height replaces several legacy fi
 | `SG13G2_nosub.xml`, `SG13CMOS5L_nosub.xml` | `SG13G2_FEM_200um.xml` / `SG13CMOS5L_200um.xml` with `total_thickness = 25`. Not identical, but a similar use case: the legacy files had no silicon at all (BEOL on a 2 µm spacer), while this keeps the 3.75 µm EPI layer on a thin substrate. Do not go below `total_thickness` = 19.88 (SG13G2) or 13.05 (SG13CMOS5L): the substrate thickness would become zero or negative, and the stackup reader does not check this. |
 | `pcb_ro4003.xml` | not an IHP stackup, keep using the legacy file |
 
+## SG13CMOS5L and its process specification
+
+`SG13CMOS5L_200um.xml` was checked against the published SG13CMOS5L Process Specification Rev. 0.2 (IHP-Open-PDK, `ihp-sg13cmos5l/libs.doc/doc`). The layer thicknesses and z positions, the metal and via conductivities (Metal1–Metal4, TopMetal1, Via1–Via3), the substrate and EPI, the passivation and the sheet resistances of RSIL, RPPD and RHIGH agree with it. A few values follow other conventions; `SG13G2_FEM_200um.xml` uses the same values for these layers:
+
+- The dielectric under Metal1 (the `Cont` layer) is 0.64 µm of εr 4.1. The specification gives 590 nm oxide plus 50 nm nitride and an equivalent of 620 nm at εr 4.1 (page 4). The capacitance from Metal1 to Activ and poly comes out a few % lower than the specification's equivalent.
+- The field oxide at the Activ level has εr 4.1; the specification's cross section shows 3.95 (page 5).
+- `Cont` gives 10.5 Ω per 0.16 µm contact. The specification's typical contact resistance is 17 Ω to silicided Activ and 15 Ω to poly, 8 to 22 Ω (page 17).
+- TopVia1's resistance is "tbd" in the specification (page 17). The stackup uses the SG13G2 value, 2.2 Ω per 0.42 µm via.
+- The specification gives no thermal conductivities; see "Thermal properties" below for their sources.
+
 ## Overriding stackup variables in the model code
 
 A model can change any `<Variable>` of the stackup file without editing the XML file. The Python model code passes a dictionary of overrides to the stackup reader:
