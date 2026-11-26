@@ -52,15 +52,21 @@ The last command prints the installed version. For other Linux systems, see the
 ## The easy way: download the ready-made image
 
 ```bash
-apptainer pull ~/palace_0181.sif oras://ghcr.io/volkermuehlhaus/palace_0181:latest
+apptainer pull ~/palace_0200.sif oras://ghcr.io/volkermuehlhaus/palace_0200:latest
 ```
 
-This downloads Palace 0.18.1 (about 310 MB) into your home folder. The image runs on all
+This downloads Palace 0.20.0 (about 370 MB) into your home folder. The image runs on all
 Intel processors since 2013 (Haswell) and all AMD processors since 2017 (Zen). Continue with
 [Test the image](#test-the-image) and then
 [Use the image with gds2palace](#use-the-image-with-gds2palace).
 
+The image of the previous version, Palace 0.18.1, is still available:
+`apptainer pull ~/palace_0181.sif oras://ghcr.io/volkermuehlhaus/palace_0181:latest`.
+
 ## Build the image yourself
+
+The steps below build Palace 0.18.1. Palace 0.20.0 needs a different recipe: see
+[Build another Palace version](#build-another-palace-version).
 
 ### Why your own build needs extra care
 
@@ -194,21 +200,22 @@ If that fails too, use `sudo apptainer build ...` as a last resort.
 
 ## Test the image
 
-The commands below use `~/palace_0181.sif`. If your image file has a different name, use
+The commands below use `~/palace_0200.sif`. If your image file has a different name, use
 that name instead.
 
 **1. Check the version:**
 
 ```bash
-apptainer exec ~/palace_0181.sif palace --version
+apptainer exec ~/palace_0200.sif palace --version
 ```
 
-This prints `Palace version: 0dc74cd`. The code `0dc74cd` stands for version 0.18.1.
+This prints `Palace version: v0.20.0`. The 0.18.1 image prints `Palace version: 0dc74cd`; the
+code `0dc74cd` stands for version 0.18.1.
 
 **2. Only for images you built yourself, check the processor level:**
 
 ```bash
-apptainer exec ~/palace_0181.sif sh -c 'ls /opt/software; zcat /opt/software/linux-*/libceed-*/.spack/spack-build-out.txt.gz | grep -m1 "^CFLAGS"'
+apptainer exec ~/palace_0200.sif sh -c 'ls /opt/software; zcat /opt/software/linux-*/libceed-*/.spack/spack-build-out.txt.gz | grep -m1 "^CFLAGS"'
 ```
 
 The first line of the output must be `linux-x86_64_v3`. The line starting with `CFLAGS` must
@@ -216,15 +223,16 @@ not contain `-march=native`. If it does, fix 2 from Step 3 is missing, and the i
 crash on other computers.
 
 **3. Run a small example.** Palace comes with example models. This downloads the `rings`
-example and runs it:
+example and runs it. Take the example from the same version as your image: for a 0.18.1 image,
+write `v0.18.1` instead of `v0.20.0` in the two links.
 
 ```bash
 mkdir -p ~/palace-test/mesh && cd ~/palace-test
 curl -fsSL -o rings.json \
-  "https://raw.githubusercontent.com/awslabs/palace/v0.18.1/examples/rings/rings.json"
+  "https://raw.githubusercontent.com/awslabs/palace/v0.20.0/examples/rings/rings.json"
 curl -fsSL -o mesh/rings.msh \
-  "https://raw.githubusercontent.com/awslabs/palace/v0.18.1/examples/rings/mesh/rings.msh"
-apptainer exec ~/palace_0181.sif palace rings.json
+  "https://raw.githubusercontent.com/awslabs/palace/v0.20.0/examples/rings/mesh/rings.msh"
+apptainer exec ~/palace_0200.sif palace rings.json
 ```
 
 The run takes a few seconds. At the end, Palace prints an "Elapsed Time Report". The result
@@ -233,11 +241,11 @@ is in the file `postpro/terminal-M.csv`.
 **4. Run the example on 2 processor cores:**
 
 ```bash
-apptainer exec ~/palace_0181.sif palace -np 2 rings.json
+apptainer exec ~/palace_0200.sif palace -np 2 rings.json
 ```
 
 Palace now prints `Running with 2 MPI processes` near the start. The result must be the same
-as before.
+as before, to about 9 digits.
 
 ## Use the image with gds2palace
 
@@ -247,7 +255,7 @@ Change it so that it uses your image file:
 
 ```bash
 #!/bin/bash
-apptainer -q exec ~/palace_0181.sif palace -np 8 $1
+apptainer -q exec ~/palace_0200.sif palace -np 8 $1
 ```
 
 - `-np 8` is the number of processor cores Palace uses. Set it to the number of cores you
@@ -260,6 +268,11 @@ described in [`scripts/README.md`](../scripts/README.md).
 
 ## Build another Palace version
 
+- **Palace 0.20.0:** the recipe above doesn't work for it. Use the build file of the published
+  image instead, [`palace_container/palace_0200.def`](palace_container/palace_0200.def), in place
+  of Steps 2 and 3: `apptainer build ~/palace_0200.sif palace_0200.def`. It follows the build
+  that the Palace developers use for their own tests, with the libCEED fix from Step 3, and
+  adds the solvers STRUMPACK and MUMPS.
 - **Newer version:** change `palace@0.18.1` in Step 2 to the new version. Check first if
   Spack knows it, see [For AI agents](#for-ai-agents-technical-notes). Fix 1 in Step 3 may
   need a newer package list, or may not be needed at all. Keep fix 2.
@@ -278,14 +291,29 @@ described in [`scripts/README.md`](../scripts/README.md).
 | The build stops with a permission error | Use `apptainer build --fakeroot ...`. |
 | The build says the image file already exists | Delete the old `.sif` file, or use another file name. |
 | Palace stops with an MPI error when you use `mpirun` | Don't put `mpirun` in front of `palace`. Use `palace -np 4` instead: `palace` already starts `mpirun` itself. |
-| An example from the Palace website gives configuration errors | Take the example from the same version as your image (`v0.18.1` in the download links above). Newer examples may use options that older versions don't know. |
+| An example from the Palace website gives configuration errors | Take the example from the same version as your image (`v0.20.0` in the download links above). Newer examples may use options that older versions don't know. |
 
 ## For AI agents: technical notes
 
 This section is for AI coding agents that build or debug the image for a user. It records
 the facts behind the steps above.
 
-**Verified state (2026-10-20).** Palace 0.18.1, git commit `0dc74cd`, built with the recipe
+**Verified state (2026-11-26), Palace 0.20.0.** Tag `v0.20.0`, commit `517fb78`, built from
+[`palace_container/palace_0200.def`](palace_container/palace_0200.def) on an AMD Ryzen AI MAX+
+PRO 395. The recipe follows Palace's CI for v0.20.0 (`.github/actions/build-container`):
+spack-packages pinned to `41fb891`, Palace's own `spack_repo/local` and its patches on top. Two
+things differ from the CI: the `palace` package of the tag has the `@0.20:` rules but no
+`0.20.0` version line, which the recipe adds, and it has the libCEED fix (fix 2 below) and
+`target=x86_64_v3`. Spec: `palace@0.20.0 +superlu-dist +strumpack +mumps +slepc +sundials
++libxsmm +gslib +parmetis`. All 80 packages concretize to `x86_64_v3`; `libceed.so` and
+`palace-x86_64.bin` have no AVX-512 (`zmm`) instruction. The image is 369 MB and published as
+`oras://ghcr.io/volkermuehlhaus/palace_0200:latest`; the SHA-256 of the published file equals
+the local build (`7c7e8745...a4ebb6`). `palace --version` prints `v0.20.0`, schema 6-0-0.
+`rings` from the `v0.20.0` tag runs with 1 and 2 MPI processes, with `postpro/terminal-M.csv`
+equal to 9 digits. gds2palace models (an rfcmim capacitor) run with it. The notes below are
+from the 0.18.1 build; fix 2 applies to both.
+
+**Verified state (2026-10-20), Palace 0.18.1.** Palace 0.18.1, git commit `0dc74cd`, built with the recipe
 and fixes above on an AMD Ryzen AI MAX+ PRO 395 (Spack target `zen4`). The image is 311 MB.
 It is published as `oras://ghcr.io/volkermuehlhaus/palace_0181:latest`, and the published
 file was checked by SHA-256 against the local build. `rings` gives the same

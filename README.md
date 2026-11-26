@@ -53,12 +53,12 @@ For development of this workflow, Palace was installed using the Singularity/App
 A detailed step-by-step guide is available here:
 [building-palace-apptainer.md](./doc/building-palace-apptainer.md)
 
-A pre-built container image for Palace 0.18.1 is also available, if you'd rather not build
+A pre-built container image for Palace 0.20.0 is also available, if you'd rather not build
 anything yourself. It runs on all Intel processors since 2013 and all AMD processors since
 2017. To download it into your current directory:
 
 ```
-$ apptainer pull palace_0181.sif oras://ghcr.io/volkermuehlhaus/palace_0181:latest
+$ apptainer pull palace_0200.sif oras://ghcr.io/volkermuehlhaus/palace_0200:latest
 ```
 
 ### Installing the Palace solver using **spack package manager**

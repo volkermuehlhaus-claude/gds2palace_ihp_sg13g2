@@ -6,6 +6,7 @@ This is an (incomplete) list of changes and new features.
 
 The main new features of the last months, with the version that brought them:
 
+- **Ready-made Palace 0.20.0 container image**, the default of the install scripts (26 November)
 - **Overlapping materials with Priority**, e.g. mold compound drawn over a die (0.13.0)
 - **Thermal conductivity lateral and vertical**, and **limits for stackup variables** (0.13.0)
 - **Datatype per stackup layer**, for technologies with a metal and a keepout on one GDS layer number (0.13.0)
@@ -16,6 +17,13 @@ The main new features of the last months, with the version that brought them:
 - **`settings['conductor_model']`**: one setting for the conductor model, for accurate conductor loss (0.9.0)
 
 Each dated section below lists the new features first, then changed behaviour, then fixes.
+
+## 26 November-2026
+
+### New
+
+**Ready-made container image for Palace 0.20.0**  
+`apptainer pull palace_0200.sif oras://ghcr.io/volkermuehlhaus/palace_0200:latest` downloads Palace 0.20.0, for all Intel processors since 2013 and all AMD processors since 2017. The install scripts for Linux and Windows (WSL) now install this image. The Palace 0.18.1 image is still available (`--palace-version 0181`). See `doc/building-palace-apptainer.md`.
 
 ## 25 November-2026
 

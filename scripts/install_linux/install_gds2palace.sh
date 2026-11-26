@@ -32,7 +32,7 @@
 #
 # Options:
 #   --venv-dir PATH     Where to create the Python venv (default: ~/venv/palace)
-#   --palace-version X   Palace container tag to pull (default: 0181)
+#   --palace-version X   Palace container tag to pull (default: 0200)
 #   --np N               Default core count baked into run_palace (default:
 #                        number of CPU cores, minimum 4, no upper limit)
 #   --skip-palace        Only set up the Python side (venv, setupEM,
@@ -56,7 +56,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 VENV_DIR="${HOME}/venv/palace"
-PALACE_VERSION="0181"
+PALACE_VERSION="0200"
 RUN_NP=""
 SKIP_PALACE=0
 WITH_KLAYOUT=0
@@ -103,7 +103,7 @@ automatic, script-friendly behavior below instead.
 
 Options:
   --venv-dir PATH     Where to create the Python venv (default: ~/venv/palace)
-  --palace-version X   Palace container tag to pull (default: 0181)
+  --palace-version X   Palace container tag to pull (default: 0200)
   --np N               Default core count baked into run_palace (default:
                        number of CPU cores, minimum 4, no upper limit)
   --skip-palace        Only set up the Python side (venv, setupEM,

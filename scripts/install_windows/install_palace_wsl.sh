@@ -26,7 +26,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 VENV_DIR="${HOME}/venv/palace"
-PALACE_VERSION="0181"
+PALACE_VERSION="0200"
 RUN_NP=""
 ASSUME_YES=0
 
@@ -44,7 +44,7 @@ Usage:
 Options:
   --venv-dir PATH       Where to create the helper Python venv
                          (default: ~/venv/palace)
-  --palace-version X    Palace container tag to pull (default: 0181)
+  --palace-version X    Palace container tag to pull (default: 0200)
   --np N                Default core count baked into run_palace
                          (default: number of CPU cores, minimum 4)
   --yes                 Non-interactive: never prompt, accept all defaults

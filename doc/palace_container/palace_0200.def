@@ -1,0 +1,105 @@
+Bootstrap: docker
+From: spack/ubuntu-noble:1.2
+Stage: build
+
+%post
+  set -e
+  # Portable Palace 0.20.0 image (x86_64_v3 = AVX2, no AVX-512): runs on all Intel processors since 2013
+  # (Haswell) and all AMD processors since 2017 (Zen). This is the recipe of the published image
+  # oras://ghcr.io/volkermuehlhaus/palace_0200:latest, see doc/building-palace-apptainer.md.
+  # Recipe follows Palace's own CI for v0.20.0 (.github/actions/build-container, setup-runner):
+  # spack-packages pinned to 41fb891, Palace's local spack repo + patches on top.
+  PALACE_TAG=v0.20.0
+  PALACE_COMMIT=517fb78665f824d9603a1efd0a5f2f494685f924
+  SPACK_PACKAGES_COMMIT=41fb89176c50aa111aec1038f43c26e80d5bf083
+
+  . /opt/spack/share/spack/setup-env.sh
+
+  # Pin the builtin package repo to the commit Palace CI uses for v0.20.0
+  spack repo update --commit "$SPACK_PACKAGES_COMMIT" builtin
+  test "$(git -C "$(spack location --repo builtin)" rev-parse HEAD)" = "$SPACK_PACKAGES_COMMIT"
+
+  # Palace's own spack repo and patches from the release tag
+  git clone --depth 1 --branch "$PALACE_TAG" https://github.com/awslabs/palace.git /opt/palace-src
+  test "$(git -C /opt/palace-src rev-parse HEAD)" = "$PALACE_COMMIT"
+  spack repo add /opt/palace-src/spack_repo/local
+  # 0.20 ships its own spack_repo/local/packages/mfem: the 0.19 mfem symlink workaround must not be used
+  test -f /opt/palace-src/spack_repo/local/packages/mfem/package.py
+  (cd "$(cd "$(spack location --repo builtin)" && git rev-parse --show-toplevel)" && \
+   for p in /opt/palace-src/spack_repo/patches/*.diff; do
+     if git apply --check "$p" 2>/dev/null; then echo "Applying patch: $p"; git apply "$p";
+     elif git apply --reverse --check "$p" 2>/dev/null; then echo "Patch already applied: $p";
+     else echo "ERROR: patch does not apply: $p"; exit 1; fi
+   done)
+
+  # The 0.20.0 recipe has the @0.20: rules but no 0.20.0 version line: add it
+  PALACE_PKG=/opt/palace-src/spack_repo/local/packages/palace/package.py
+  sed -i "s/^\(    \)version(\"0.19.0\"/\1version(\"0.20.0\", tag=\"$PALACE_TAG\", commit=\"$PALACE_COMMIT\")\n&/" "$PALACE_PKG"
+  grep -n 'version("0.20.0"' "$PALACE_PKG" || { echo "ERROR: palace 0.20.0 version line not added"; exit 1; }
+
+  # libCEED's Makefile adds -march=native, which overrides Spack's target flags
+  # and puts host-specific code (e.g. AVX-512) into the image. An empty
+  # MARCHFLAG on the make command line leaves only Spack's target flags.
+  BUILTIN_REPO=$(spack location --repo builtin)
+  LIBCEED_PKG=$(find "$BUILTIN_REPO" -path '*/packages/libceed/package.py' | head -1)
+  sed -i 's/"OPT=%s $(MARCHFLAG)/"MARCHFLAG=", &/' "$LIBCEED_PKG"
+  grep -q '"MARCHFLAG=", "OPT=%s $(MARCHFLAG)' "$LIBCEED_PKG" || \
+    { echo "ERROR: libceed package.py patch did not apply"; exit 1; }
+
+  # Create the manifest file for the installation in /opt/spack-environment
+  mkdir /opt/spack-environment && cd /opt/spack-environment
+  cat << EOF > spack.yaml
+spack:
+  concretizer:
+    unify: true
+  packages:
+    all:
+      require:
+      - target=x86_64_v3
+  specs:
+  - palace@0.20.0 +superlu-dist +strumpack +mumps +slepc +sundials +libxsmm +gslib +parmetis
+  config:
+    install_tree:
+      root: /opt/software
+  view: /opt/views/view
+EOF
+
+  # Fail early if the portable target was not applied
+  spack -e . concretize
+  spack -e . find -c --format '{name}@{version} {target}' | grep -E '(palace|mfem|libceed|hypre|strumpack|mumps|superlu-dist|petsc|slepc|openblas|openmpi)@' || true
+  spack -e . find -c --format '{target}' | sort | uniq -c || true
+  if spack -e . find -c --format '{target}' | grep -qiE 'zen|skylake|icelake|sapphire|haswell|broadwell|cascade|x86_64_v4'; then
+    echo "ERROR: host-specific CPU target in concretization"; exit 1
+  fi
+  spack -e . install -j 16
+  # Log libCEED's compile flags and AVX-512 instruction counts for the record
+  zcat $(spack -e . location -i libceed)/.spack/spack-build-out.txt.gz | grep -m1 '^CFLAGS' || true
+  echo "libceed zmm count: $(objdump -d $(spack -e . location -i libceed)/lib/libceed.so | grep -c '%zmm' || true)"
+  echo "palace zmm count: $(objdump -d $(spack -e . location -i palace)/bin/palace-x86_64.bin | grep -c '%zmm' || true)"
+  spack gc -y
+  spack env activate --sh -d . >> /opt/spack-environment/environment_modifications.sh
+
+  # Strip the binaries to reduce the size of the image
+  find -L /opt/views/view/* -type f -exec readlink -f '{}' \; | \
+    xargs file -i | \
+    grep 'charset=binary' | \
+    grep 'x-executable\|x-archive\|x-sharedlib' | \
+    awk -F: '{print $1}' | xargs strip
+
+Bootstrap: docker
+From: ubuntu:24.04
+Stage: final
+
+%files from build
+  /opt/spack-environment /opt
+  /opt/software /opt
+  /opt/views /opt
+  /opt/spack-environment/environment_modifications.sh /opt/spack-environment/environment_modifications.sh
+
+%post
+
+  # Symlink the old view location
+  ln -s /opt/views/view /opt/view
+
+  # Modify the environment without relying on sourcing shell specific files at startup
+  cat /opt/spack-environment/environment_modifications.sh >> $SINGULARITY_ENVIRONMENT
