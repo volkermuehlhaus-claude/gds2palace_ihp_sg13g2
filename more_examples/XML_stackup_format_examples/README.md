@@ -258,3 +258,54 @@ This and four more use cases of Priority are explained in "Priority: overlapping
 [`XML_stackup_format.md`](../../doc/XML_stackup_format/XML_stackup_format.md#priority-overlapping-volumes).
 
 ![File 05: a die in mold compound, the mold has Priority -1](../../doc/userguide_md_format/images/priority_a_mold.png)
+
+### Datatype per layer
+
+`schemaVersion="3.2"` has one more feature, which file 05 doesn't need: a `<Layer>` can name the
+GDS datatype it is read from. Use it for a technology that puts several things on one GDS layer
+number and tells them apart by the datatype, e.g. a metal and its keepout.
+
+```xml
+<Layers>
+  <!-- two layers on GDS layer 68: each is read from its own datatype -->
+  <Layer Name="Metal1" Type="conductor" Material="Metal1" Layer="68" Datatype="20" Zmin="1.0" Zmax="1.4" />
+  <Layer Name="Via1"   Type="via"       Material="Via1"   Layer="68" Datatype="44" Zmin="1.4" Zmax="1.7" />
+  <!-- no Datatype: read from the datatypes given to read_gds(), datatype 0 if none are given -->
+  <Layer Name="Metal2" Type="conductor" Material="Metal2" Layer="69" Zmin="1.7" Zmax="2.1" />
+</Layers>
+```
+
+The stackup decides: a layer with a `Datatype` is read from that datatype, whatever datatypes
+the model script passes to `read_gds()`. The script itself needs no change:
+
+```python
+materials_list, dielectrics_list, metals_list = stackup_reader.read_substrate(XML_filename)
+layernumbers = metals_list.getlayernumbers()
+allpolygons = gds_reader.read_gds(gds_filename, layernumbers, purposelist=[0], metals_list=metals_list)
+allpolygons.print_layers(metals_list)     # optional: what was read into which layer
+```
+
+`read_gds()` prints a note when the layout has shapes on a stackup layer's number that are not
+read, and `print_layers()` lists what was read:
+
+```
+Note: GDS layer 68 (Metal1, Via1): read 68/20, 68/44; in the file but not read: 68/5 (120 polygons)
+
+Stackup layer  GDS layer  Layer id     Polygons
+Metal1         68/20      10006800020  340
+Via1           68/44      10006800044  5120
+Metal2         69         69           212
+```
+
+In a derived layer, an operand can name its datatype in the same way, e.g. to make one metal from
+drawing and pin shapes:
+
+```xml
+<DerivedLayer Name="Met1_all" Layer="311" Operation="OR">
+  <Operand Layer="68" Datatype="20" />
+  <Operand Layer="68" Datatype="16" />
+</DerivedLayer>
+```
+
+The rules are in "Datatype" in
+[`XML_stackup_format.md`](../../doc/XML_stackup_format/XML_stackup_format.md#datatype-which-gds-datatype-a-layer-is-read-from).

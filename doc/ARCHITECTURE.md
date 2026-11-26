@@ -132,7 +132,8 @@ Smallest real example in the repo, `XML_stackup/legacy/pcb_ro4003.xml` (full fil
 **`<Materials>`** — one `<Material>` per material: `Name`, `Type` (`Conductor`/`Dielectric`/
 `Semiconductor`/`Resistor`), `Permittivity`, `DielectricLossTangent`, `Conductivity`, `Rs`, plus
 thermal-only `Density`/`ThermalConductivity`/`ThermalConductivityTable`, and a `Color` (hex, used
-by the stackup preview).
+by the stackup preview). `ThermalConductivity.xy`/`.z` and `ThermalConductivityTable.xy`/`.z` give a
+lateral and a vertical value (see "schemaVersion 3.2" below).
 
 **`<Dielectrics>`** — the vertical dielectric stack, independent of GDSII, listed top-to-bottom.
 Position is resolved by priority: (1) explicit `Zmin`+`Zmax`, (2) Reference-relative
@@ -159,8 +160,8 @@ ones via boolean ops `AND`/`OR`/`XOR`/`NOT` (≥2 operands, folded pairwise) or 
 resize by `Oversize`). Operands may chain off other derived layers (topologically sorted). Full
 detail: `doc/XML_stackup_format/derived_layers.md`.
 
-**`<Variables>`** (`schemaVersion="3.1"+`, the current `SUPPORTED_SCHEMA_VERSION` in
-`util_stackup_reader.py`; the reader only warns about a higher `schemaVersion`) — by convention the
+**`<Variables>`** (`schemaVersion="3.1"+`; the reader only warns about a `schemaVersion` above its
+`SUPPORTED_SCHEMA_VERSION`, currently `"3.2"`) — by convention the
 first child of `<Stackup>`; the reader resolves them first wherever they are. Any attribute value anywhere
 in the file starting with `=` is an expression (`+ - * / **`, parens, references to other Variables
 by name), resolved in dependency order with circular-reference detection:
@@ -173,6 +174,31 @@ by name), resolved in dependency order with circular-reference detection:
 `stackup_reader.read_substrate(XML_filename, variable_overrides={...})` lets a model script
 override a named Variable at run time without editing the XML — the mechanism setupEM's "Override
 stackup Variables" grid feeds into.
+
+**`schemaVersion="3.2"`** (stackup reader 1.11.0, gds2palace 0.13.0) adds four optional features. A
+stackup without them is read and built exactly as before. Full rules, with use cases:
+`doc/XML_stackup_format/XML_stackup_format.md`.
+
+- **Priority** on `<Dielectric>` and `<Layer>` (`resolve_priority()`, `.priority`): where two volumes
+  overlap, the higher Priority keeps the overlap. It compares dielectrics among themselves and
+  conductors and vias among themselves; a conductor or via always wins over a dielectric. So
+  `<Dielectric>` boxes may overlap (mold compound around a die); two that overlap with equal Priority
+  stop with an error.
+- **Thermal conductivity per direction** on `<Material>`: `.xy` and `.z` variants of
+  `ThermalConductivity` and `ThermalConductivityTable`; the plain attribute stays the value for all
+  directions. `stackup_material.thermal_xyz` holds the three directions (each a constant or a table).
+- **Allowed values of Variables**: `Min`/`Max` (numbers or `=` expressions), `Step`, `List` (`a;b;c`)
+  and `Description` on `<Variable>`. `variables_list.check_allowed_values()` checks the file's values
+  and every override after all variables are resolved, and stops outside them.
+- **Datatype** on `<Layer>` and on a derived layer's `<Operand>`, `BoundaryDatatype` on `<Dielectric>`:
+  the layer is read from that GDS datatype, whatever `purposelist` `read_gds()` gets. A layer with a
+  `Datatype` is identified by a **layer id** instead of its plain layer number: a leading 1, five
+  digits layer number, five digits datatype (68/20 is `10006800020`; `layer_id()`,
+  `split_layer_id()`, `layer_text()`). `metal.layernum` and `metals_list.getlayernumbers()` hold these
+  ids, `metal.gds_layernum` / `metal.datatype` the two parts. Everything downstream that is keyed by
+  layer number (polygons, bounding boxes, via merging, derived layers, port walls) works on the ids
+  unchanged, and two stackup layers can share a GDS layer number. Layers without a `Datatype` keep
+  their plain number.
 
 ### 3.2 — `stackupEditor`: what it is, and what it's built on
 
@@ -226,7 +252,7 @@ add_layer(root, **attrs)  / remove_layer(root, element)
 reorder_layers(root, ordered_elements)         # file order only; the reader sorts by z itself
 set_substrate_offset(root, value)              # value None/0 removes the <Substrate> element
 add_derived_layer(root, **attrs)  / remove_derived_layer(root, element)
-get_operand_layers(element) / set_operands(element, layer_numbers)
+get_operand_layers(element) / set_operands(element, layer_numbers)   # "68/20": an operand with a Datatype
 add_variable(root, **attrs)  / remove_variable(root, element)
 add_table(root, **attrs)  / remove_table(root, element)
 add_point(table_element, **attrs)  / remove_point(table_element, element)
@@ -401,7 +427,7 @@ utilities.create_run_script(sim_path)
   without editing the XML file — this is exactly the mechanism setupEM's "Override stackup
   Variables" grid feeds into.
 
-- **`gds_reader.read_gds(filename, layerlist, purposelist, metals_list, preprocess=False,
+- **`gds_reader.read_gds(filename, layerlist, purposelist=None, metals_list=None, preprocess=False,
   merge_polygon_size=0, mirror=False, offset_x=0, offset_y=0, gds_boundary_layers=[],
   layernumber_offset=0, cellname="", derived_layers=None)`** (`util_gds_reader.py`), in order:
   1. Opens the GDS with `gdstk.read_gds` and picks the cell with `select_design_cell()`: the named
@@ -410,17 +436,22 @@ utilities.create_run_script(sim_path)
      rule as gds_prepare_for_EM and gds2openEMS).
   2. Flattens it (paths become polygons), applies `mirror` (about the y axis) and then
      `offset_x`/`offset_y`, and for each requested layer number (plus `gds_boundary_layers`)
-     extracts layer/datatype polygons matching `purposelist`. `layernumber_offset` is added to every
-     layer number, so that two GDS files can be read into one model.
+     extracts layer/datatype polygons matching `purposelist` (`None` means `[0]`). A layer id of a
+     stackup layer with a `Datatype` (§3.1) is read from that datatype only, whatever `purposelist`
+     says; its polygons carry the id as `layernum`, with `poly.gds_layer` / `poly.gds_datatype` for
+     the two parts. `layernumber_offset` is added to every layer number, so that two GDS files can be
+     read into one model. A note is printed for shapes on a stackup layer's number that are on
+     datatypes not read. `all_polygons.print_layers(metals_list)` lists what was read into which layer.
   3. Via arrays: on `metal.is_via` layers with `merge_polygon_size > 0`, `merge_via_array()` merges
      vias closer than that distance, then `split_bridging_via_merges()` splits a merged region again
      where it would connect different metal shapes above or below (gds2palace 0.8.1 and newer). The
-     unmerged vias are kept in `all_polygons.via_originals` (keyed by layer number); `create_model()`
+     unmerged vias are kept in `all_polygons.via_originals` (keyed by layer number or id); `create_model()`
      uses them only when `settings['fill_factor_correction']` is set, calling
      `all_polygons_list.compute_via_fill_factors()` to set each merged via polygon's `fill_factor`,
      so reading GDSII costs nothing extra otherwise.
   4. Derived layers: `resolve_derived_layers()` computes the stackup's `<DerivedLayers>` (boolean
-     operations and `SIZE`, in dependency order) from the raw layer polygons. With
+     operations and `SIZE`, in dependency order) from the raw layer polygons. An operand with a
+     `Datatype` is a layer id and is read from that datatype. With
      `derived_layers=None` (the normal call), they come from `metals_list.derived_layers`.
   5. The dielectric bounding boxes from `gds_boundary_layers`.
   6. `_repair_malformed_polygons()`: self-intersecting polygons on layers meshed as solids (stackup
@@ -462,9 +493,15 @@ utilities.create_run_script(sim_path)
      models: `add_thermal_sources()` / `add_thermal_boundaries()` build the heat-source volumes
      and the constant-temperature surfaces from the marker polygons.
   5. `add_dielectrics(...)` — builds the stackup dielectric boxes and, unless doing
-     thermal, an outer airbox sized by `margin`/`air_around`.
-  6. Boolean-cuts metal out of dielectric (`gmsh.model.occ.cut`), then
-     `gmsh.model.occ.fragment(...)` to conformally stitch everything together.
+     thermal, an outer airbox sized by `margin`/`air_around`. `resolve_dielectric_overlaps()` cuts
+     each overlap of two boxes out of the one with the lower Priority (equal Priority: error);
+     `resolve_dielectric_layer_priorities()` then cuts a drawn dielectric layer where a `<Dielectric>`
+     has a higher Priority.
+  6. Boolean-cuts metal and drawn dielectric layers out of the dielectric boxes
+     (`gmsh.model.occ.cut`), then `gmsh.model.occ.fragment(...)` to conformally stitch everything
+     together. A piece shared by two drawn volumes goes to the one named last, in the order of
+     `_overlap_class()`: drawn dielectric layers, then vias and conductors, each by Priority, at equal
+     Priority a conductor after a via.
   7. `add_ports(...)` — builds the port 2D-sheet surfaces and returns the port metadata struct.
      Several surfaces of one port (several shapes on its layer, or the four walls of a tube port)
      become elements `P<n>`, `P<n>_2`, ... of one multielement port. A second
@@ -1047,6 +1084,9 @@ instead of EM ports. `util_elmer.write_elmer_thermal_file()` writes `case.sif`: 
 iterative by default (BiCGStabl with an ILU3 preconditioner, at most 10000 iterations;
 `settings['iterative'] = False` gives the direct solver UMFPACK, since MUMPS isn't in the Windows
 Elmer build), nonlinear iterations when a material has a temperature-dependent conductivity table.
+A material with a lateral and a vertical thermal conductivity (§3.1) is written as a diagonal tensor,
+`Heat Conductivity(3)`, with one table column per direction when a direction has a table
+(`_elmer_heat_conductivity()` in `util_simulation_setup.py`).
 Details: the user guide's "Using gds2palace with Elmer FEM for thermal simulation" chapter and
 `more_examples/thermal_simulation_using_Elmer/Elmer_Thermal_Workflow.md`. `util_thermal_map.py`
 (§2) fills in heat-source powers from a circuit simulation.
