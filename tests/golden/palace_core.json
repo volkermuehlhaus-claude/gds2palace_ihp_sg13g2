@@ -273,7 +273,7 @@
   "Problem": {
    "Output": "palace_core",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

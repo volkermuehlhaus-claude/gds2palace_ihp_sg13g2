@@ -187,7 +187,7 @@
   "Problem": {
    "Output": "balun2x1_edgecoupled_do200_w8_s2_mesh5",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

@@ -146,7 +146,7 @@
   "Problem": {
    "Output": "palace_line_portwall",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

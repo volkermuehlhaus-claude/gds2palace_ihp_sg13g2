@@ -189,7 +189,7 @@
   "Problem": {
    "Output": "palace_resistors_rsil",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

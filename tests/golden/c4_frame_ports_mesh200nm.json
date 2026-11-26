@@ -191,7 +191,7 @@
   "Problem": {
    "Output": "c4_frame_ports_mesh200nm",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

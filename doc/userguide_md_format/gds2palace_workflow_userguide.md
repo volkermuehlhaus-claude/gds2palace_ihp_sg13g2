@@ -329,7 +329,7 @@ When you are done with inspection of the model (which is optional, no user actio
 {
     "Problem": {
         "Type": "Driven",
-        "Verbose": 3,
+        "Verbose": 2,
         "Output": "output/palace_line_viaport"
     },
     "Model": {

@@ -102,7 +102,7 @@
   "Problem": {
    "Output": "palace_line_noGDS_w15_l880_mesh2_order2",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

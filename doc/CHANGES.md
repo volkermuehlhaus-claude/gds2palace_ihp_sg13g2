@@ -25,6 +25,10 @@ Each dated section below lists the new features first, then changed behaviour, t
 **Ready-made container image for Palace 0.20.0**  
 `apptainer pull palace_0200.sif oras://ghcr.io/volkermuehlhaus/palace_0200:latest` downloads Palace 0.20.0, for all Intel processors since 2013 and all AMD processors since 2017. The install scripts for Linux and Windows (WSL) now install this image. The Palace 0.18.1 image is still available (`--palace-version 0181`). See `doc/building-palace-apptainer.md`.
 
+### Changed behaviour
+
+- The Palace log is shorter: `config.json` now has `"Verbose": 2` instead of 3. With Palace 0.20, level 3 printed a long report of the direct solver for every solve. The log still shows the progress, the iterations of every solve and all warnings. For the old output, set `"Verbose": 3` in `config.json`.
+
 ## 25 November-2026
 
 gds2palace 0.13.0

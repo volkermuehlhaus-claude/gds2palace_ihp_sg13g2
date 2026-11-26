@@ -232,7 +232,7 @@
   "Problem": {
    "Output": "palace_balun_mesh4",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

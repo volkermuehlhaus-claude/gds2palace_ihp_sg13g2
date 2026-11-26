@@ -172,7 +172,7 @@
   "Problem": {
    "Output": "verify_MIM_nominal_280",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

@@ -140,7 +140,7 @@
   "Problem": {
    "Output": "L6n2_with_ports_5um_passi3D",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

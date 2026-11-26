@@ -200,7 +200,7 @@
   "Problem": {
    "Output": "palace_transformer_imn_mesh5",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

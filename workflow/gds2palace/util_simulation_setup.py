@@ -18,7 +18,7 @@
 
 # -*- coding: utf-8 -*-
 
-__version__ = "1.24.1"
+__version__ = "1.24.2"
 
 # solvers where settings['fill_factor_correction'] is applied (checked by setupEM)
 FILL_FACTOR_CORRECTION_SOLVERS = ("palace", "elmer", "elmer_thermal")
@@ -2648,7 +2648,7 @@ def create_model (excite_ports, settings):
  
     problem =  {
             "Type": "Driven",
-            "Verbose": 3,
+            "Verbose": 2,
             "Output": data_dir
         }
     config_data['Problem'] = problem

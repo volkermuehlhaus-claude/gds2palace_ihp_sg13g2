@@ -134,7 +134,7 @@
   "Problem": {
    "Output": "inductor_500pH_2port",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

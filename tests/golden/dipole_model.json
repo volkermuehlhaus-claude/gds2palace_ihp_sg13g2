@@ -249,7 +249,7 @@
   "Problem": {
    "Output": "dipole_model",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

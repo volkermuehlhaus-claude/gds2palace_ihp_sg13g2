@@ -119,7 +119,7 @@
   "Problem": {
    "Output": "ind_frame_solve_inside_mesh2",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

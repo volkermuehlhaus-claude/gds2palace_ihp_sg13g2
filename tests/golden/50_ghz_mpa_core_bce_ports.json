@@ -288,7 +288,7 @@
   "Problem": {
    "Output": "50_ghz_mpa_core_bce_ports",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",

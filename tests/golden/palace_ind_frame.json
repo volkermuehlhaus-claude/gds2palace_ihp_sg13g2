@@ -134,7 +134,7 @@
   "Problem": {
    "Output": "palace_ind_frame",
    "Type": "Driven",
-   "Verbose": 3
+   "Verbose": 2
   },
   "Solver": {
    "Device": "CPU",
