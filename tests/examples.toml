@@ -114,8 +114,9 @@ tiers = ["reader", "geometry", "model"]
 note = "SG13CMOS5L stackup, MOM capacitor"
 
 [[example]]
-script = "more_examples/mesh_convergence/mesh_convergence_transformer/palace_transformer_imn_mesh5.py"
+script = "more_examples/mesh_convergence/mesh_convergence_transformer/palace_transformer_imn_mesh4.py"
 tiers = ["reader", "geometry", "model"]
+note = "the 5 um model of this study is not used here: its mesh has zero-volume elements with gmsh on Linux, which stops the build"
 
 [[example]]
 script = "more_examples/conductor_models/inductor/ind_frame_solve_inside_mesh2.py"

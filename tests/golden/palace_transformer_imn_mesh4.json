@@ -186,7 +186,7 @@
   },
   "Model": {
    "L0": 1e-06,
-   "Mesh": "palace_transformer_imn_mesh5.msh",
+   "Mesh": "palace_transformer_imn_mesh4.msh",
    "Refinement": {
     "MaxIts": 0,
     "MaxSize": 2000000.0,
@@ -198,7 +198,7 @@
    }
   },
   "Problem": {
-   "Output": "palace_transformer_imn_mesh5",
+   "Output": "palace_transformer_imn_mesh4",
    "Type": "Driven",
    "Verbose": 2
   },
@@ -334,7 +334,7 @@
   ]
  },
  "port_information": {
-  "name": "palace_transformer_imn_mesh5",
+  "name": "palace_transformer_imn_mesh4",
   "ports": [
    {
     "Z0": 50.0,
@@ -409,5 +409,5 @@
   ],
   "unit": 1e-06
  },
- "tetrahedra": 21347
+ "tetrahedra": 27309
 }
