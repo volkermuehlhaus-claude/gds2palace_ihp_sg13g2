@@ -587,7 +587,9 @@ End
             item = f'Material {n+1}\n   Name = string "{material["name"]}"\n'
             # thermal conductivity can be single value or table passed as string here
             item = item + f'   Density = Real {material["density"]}\n'
-            item = item + f'   Heat Conductivity = {material["thermalcond"]}\n'
+            # a direction-dependent conductivity is a diagonal tensor: Heat Conductivity(3) = kx ky kz
+            keyword = 'Heat Conductivity(3)' if material.get("thermalcond_size") == 3 else 'Heat Conductivity'
+            item = item + f'   {keyword} = {material["thermalcond"]}\n'
             item = item + "End\n"
             f.write(item + "\n")
 

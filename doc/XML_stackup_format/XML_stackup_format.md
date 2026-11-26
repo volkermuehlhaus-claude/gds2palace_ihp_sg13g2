@@ -39,7 +39,7 @@ derived-layer examples using `AND`/`OR`/`NOT`).
 
 `schemaVersion` doesn't change how the reader parses a file (no attribute's meaning branches
 on it) — but `read_substrate()` does print a warning if a file declares a `schemaVersion`
-newer than `util_stackup_reader.SUPPORTED_SCHEMA_VERSION` (currently `"3.1"`), since such a
+newer than `util_stackup_reader.SUPPORTED_SCHEMA_VERSION` (currently `"3.2"`), since such a
 file may use attributes this version of the reader doesn't know about yet.
 
 ## `<Materials>`
@@ -47,8 +47,8 @@ file may use attributes this version of the reader doesn't know about yet.
 One `<Material>` element per material, referenced by name from `<Dielectric>` and `<Layer>`
 elements later in the file.
 
-> **Note:** `Density`, `ThermalConductivity`, and `ThermalConductivityTable` are **not used by
-> S-parameter simulation**. They are only read when this XML file is used in a thermal
+> **Note:** `Density`, `ThermalConductivity`, and `ThermalConductivityTable` (also per direction)
+> are **not used by S-parameter simulation**. They are only read when this XML file is used in a thermal
 > simulation flow — leaving them at their defaults (or omitting them) has no effect on EM
 > simulation results.
 
@@ -63,6 +63,8 @@ elements later in the file.
 | `Density`                   | no       | `1`     | Mass density, used by thermal simulation setup. |
 | `ThermalConductivity`        | no       | `0`     | Constant thermal conductivity, used by thermal simulation setup. |
 | `ThermalConductivityTable`   | no       | —       | Name of a `<Table>` (see [Tables](#tables-thermal-conductivity) below) to use instead of a constant value, for temperature-dependent conductivity. |
+| `ThermalConductivity.xy`, `ThermalConductivity.z` | no | — | Thermal conductivity in the lateral (x, y) or vertical (z) direction, instead of `ThermalConductivity` for that direction. See [Direction-dependent thermal conductivity](#direction-dependent-thermal-conductivity). |
+| `ThermalConductivityTable.xy`, `ThermalConductivityTable.z` | no | — | The same with a `<Table>` per direction. |
 | `Color`                     | no       | —       | Hex RGB color (no `#`), used for 3D preview / GUI display. |
 
 > **Built-in default `"AIR"`:** if the file has no `<Material Name="AIR">` entry, one is added
@@ -111,6 +113,8 @@ a `<Dielectric>`, in the order they take priority:
 | `Reference`     | no       | —       | Name of another `<Dielectric>` to position this one relative to. |
 | `ReferenceEdge` | no       | `Top`   | `Top` or `Bottom` (case-insensitive). Only meaningful with `Reference` set. |
 | `Boundary`      | no       | —       | GDSII layer number that defines this dielectric's finite (x,y) extent in the model. Optional — omit for a dielectric that simply fills the whole simulation domain. |
+| `BoundaryDatatype` | no    | —       | GDS datatype of the `Boundary` layer. See [Datatype](#datatype-which-gds-datatype-a-layer-is-read-from). |
+| `Priority`      | no       | `0`     | Where dielectrics overlap, the higher Priority keeps the overlap. See [Priority: overlapping volumes](#priority-overlapping-volumes). |
 
 \* `Thickness` is required unless `Zmin`/`Zmax` are both given (absolute mode), or `Zmax` is
 given (`Reference` mode).
@@ -183,8 +187,10 @@ that is itself modeled with negative z). A negative `Offset` shifts the layers d
 | `Zmin`    | yes      | —       | Bottom z-position — absolute, or an offset from `Reference`'s edge if `Reference` is set (see below). |
 | `Zmax`    | yes      | —       | Top z-position, same absolute-vs-offset rule as `Zmin`. A layer with `Zmax` equal to `Zmin` is a sheet, whatever its `Type`; the numbers are compared, so `Zmin="0.4" Zmax="0.40"` is a sheet too (stackup reader 1.10.0 and newer). |
 | `Layer`   | yes      | —       | GDSII layer number. Also used as the target layer number for a [derived layer](#derivedlayers-boolean-operations-on-layers), in which case its geometry does not need to exist directly in the GDSII file. |
+| `Datatype` | no      | —       | GDS datatype this layer is read from. Without it: the datatypes given to `read_gds()`. See [Datatype](#datatype-which-gds-datatype-a-layer-is-read-from). |
 | `Reference` | no     | —       | Name of another `<Dielectric>` or `<Layer>` to position this layer relative to. When set, `Zmin`/`Zmax` are reinterpreted as offsets from the resolved reference edge instead of absolute z (positive = up). Dielectric and Layer names share one namespace for this lookup, so a name must not exist as both. |
 | `ReferenceEdge` | no | `Top`   | `Top` or `Bottom` (case-insensitive). Only meaningful with `Reference` set. For a `<Dielectric>` target: its top/bottom z. For a `<Layer>` target: its `Zmax`/`Zmin`. |
+| `Priority` | no | `0` | Where volumes overlap, the higher Priority keeps the overlap: drawn dielectric layers among themselves and with the `<Dielectric>`s, conductors and vias among themselves. See [Priority: overlapping volumes](#priority-overlapping-volumes). |
 
 Layer `Type` meanings:
 - **`conductor`** — a normal metal layer with thickness (`Zmax > Zmin`).
@@ -275,6 +281,8 @@ layers. Full reference, including chaining and self-touching polygon handling, i
   a fixed distance in layout units, applied after the boolean step.
 - An `<Operand Layer="...">` can reference a native GDSII layer number or another derived
   layer's number; dependencies are resolved automatically regardless of definition order.
+- An operand of a native GDSII layer can name its datatype, `<Operand Layer="68" Datatype="20"/>`,
+  see [Datatype](#datatype-which-gds-datatype-a-layer-is-read-from).
 
 ```xml
 <DerivedLayers>
@@ -308,6 +316,223 @@ intersect three layers into one resistor recognition layer:
 </DerivedLayer>
 ```
 
+## Datatype: which GDS datatype a layer is read from
+
+A GDSII shape has a layer number and a datatype, e.g. 68/20. Without a `Datatype` in the stackup,
+a `<Layer>` is read from the datatypes that the model script gives to `read_gds()` (`purposelist`,
+datatype 0 if left out). That is enough when a technology uses one layer number per layer, as
+IHP SG13G2 does for drawing data.
+
+Some technologies put several things on one layer number and tell them apart by the datatype:
+a metal and its keepout, or drawing, pin and fill shapes. For these, a `<Layer>` can name
+its datatype (`schemaVersion="3.2"`, stackup reader 1.11.0 and newer, gds2palace 0.13.0):
+
+```xml
+<!-- metal and via on the same GDS layer number, as in sky130 -->
+<Layer Name="Metal1" Type="conductor" Material="Metal1" Layer="68" Datatype="20" Zmin="1.0" Zmax="1.4"/>
+<Layer Name="Via1"   Type="via"       Material="Via1"   Layer="68" Datatype="44" Zmin="1.4" Zmax="1.7"/>
+<!-- no Datatype: read from the datatypes given to read_gds(), as before -->
+<Layer Name="Metal2" Type="conductor" Material="Metal2" Layer="69" Zmin="1.7" Zmax="2.1"/>
+```
+
+Rules:
+
+- **The stackup wins.** A layer with a `Datatype` is read from exactly that datatype, whatever
+  `purposelist` the script passes. So a script with `purposelist=[0]` reads such a stackup
+  correctly, and nobody has to know the datatypes of the technology.
+- A layer without a `Datatype` is read from `purposelist`, as before. The same goes for port
+  layers and the marker layers of heat sources.
+- Two `<Layer>`s can use the same GDS layer number with different datatypes. Each gets its own
+  shapes.
+- One datatype per layer. For a layer made of several datatypes, use a derived layer with `OR`
+  (below).
+- `=` expressions work as in any other attribute.
+
+**Derived layers.** An `<Operand>` can name its datatype too. An operand without one is read
+from `purposelist`. An operand that is itself a derived layer has no datatype, and neither has
+the `<Layer>` entry of a derived layer: nothing is read from the layout for it.
+
+```xml
+<!-- metal drawing and pin shapes together as one metal -->
+<DerivedLayer Name="Met1_all" Layer="311" Operation="OR">
+  <Operand Layer="68" Datatype="20"/>
+  <Operand Layer="68" Datatype="16"/>
+</DerivedLayer>
+<Layer Name="Metal1" Type="conductor" Material="Metal1" Layer="311" Zmin="1.0" Zmax="1.4"/>
+```
+
+**Boundary of a dielectric.** `BoundaryDatatype` does the same for the `Boundary` layer of a
+`<Dielectric>`: `Boundary="301" BoundaryDatatype="5"`.
+
+**What `read_gds()` reports.** When the layout has shapes on the layer number of a stackup layer
+that are not read, `read_gds()` says so, for stackups with and without `Datatype`:
+
+```
+Note: GDS layer 68 (Metal1, Via1): read 68/20, 68/44; in the file but not read: 68/5 (120 polygons)
+```
+
+**In code.** A layer with a `Datatype` is identified by a layer id that holds number and
+datatype, instead of the plain layer number. `metals_list.getlayernumbers()` returns these ids,
+and `read_gds()` takes them, so a model script needs no change. Layers without a `Datatype` keep
+their plain number.
+
+The id can be read as it is: a leading 1, five digits for the layer number and five for the
+datatype. 68/20 is `10006800020`, i.e. 1 | 00068 | 00020. For checking and debugging:
+
+- A polygon has `poly.gds_layer` and `poly.gds_datatype` next to `poly.layernum`, and
+  `print(poly)` shows `Layer = 68/20`.
+- A stackup layer has `metal.gds_layernum` and `metal.datatype`;
+  `metals_list.get_layer_datatypes()` gives them for all layers.
+- `stackup_reader.layer_text(id)` writes an id as `68/20`.
+- `allpolygons.print_layers(metals_list)` prints what was read into which layer:
+
+```
+Stackup layer  GDS layer  Layer id     Polygons
+Metal1         68/20      10006800020  340
+Via1           68/44      10006800044  5120
+Metal2         69         69           212
+-              201        201          1
+```
+
+A reader older than 1.11.0 ignores `Datatype` and reads the datatypes of `purposelist`.
+
+In the Stackup Editor, the Layers tab has a "Datatype (optional)" column, the Dielectric Stack
+tab "Boundary datatype (optional)", and the operands of a derived layer are written as `68/20`.
+
+## Priority: overlapping volumes
+
+A model is built from volumes: the `<Dielectric>` boxes and the shapes of the drawn layers.
+Where two volumes overlap, each point of the overlap can have only one material. `Priority`
+decides which: the volume with the higher Priority keeps the overlap, and the overlap is cut out
+of the other one.
+
+### The rule
+
+`Priority` is an attribute of `<Dielectric>` and `<Layer>`. It is a whole number, negative values
+are allowed, and the default is 0. `=` expressions work as in any other attribute. A file that
+uses it declares `schemaVersion="3.2"` (stackup reader 1.11.0 and newer, gds2palace 0.13.0).
+
+Priority compares volumes within two groups:
+
+- **Dielectrics:** the `<Dielectric>`s and the drawn dielectric layers (`<Layer Type="dielectric">`).
+- **Metals:** the conductor and via layers.
+
+A metal always wins over a dielectric, whatever their Priority. Priority has no effect on a
+sheet (a layer with `Zmin` equal to `Zmax`).
+
+At equal Priority, a built-in order decides. It is the same as before Priority existed, so a
+stackup without Priority builds the same model as before:
+
+| Overlap | Winner at equal Priority |
+|---|---|
+| a conductor or via and any dielectric | the conductor or via (always, Priority can't change this) |
+| a drawn dielectric layer and a `<Dielectric>` | the drawn dielectric layer |
+| a conductor and a via | the conductor |
+| two `<Dielectric>`s | none: gds2palace stops with an error, gds2openEMS prints a warning |
+
+So Priority is needed in two cases only: two `<Dielectric>`s overlap, or the built-in order gives
+the wrong material for your structure. The use cases below show both, and the common cases that
+need no Priority at all.
+
+### Use cases
+
+The figures are cross-sections through the models that gds2palace builds from these stackups.
+The left panel shows the volumes as written, overlapping; the other panels show the model.
+
+**a. A die in mold compound.** The mold is one box over the whole package, the die a smaller box
+inside it. The two `<Dielectric>`s overlap, so one of them needs a lower Priority: the mold gets
+`Priority="-1"`. The die keeps its full volume, and the mold fills the space around and above
+it. No cut-out has to be computed by hand: a change of the die size in the layout is enough.
+Without the Priority, gds2palace stops with `ERROR: Dielectrics "Mold" and "Die" overlap and
+have the same Priority (0)`. This is example file
+[`05_priority_and_directional_k_schemaVersion3.2.xml`](../../more_examples/XML_stackup_format_examples/05_priority_and_directional_k_schemaVersion3.2.xml)
+with its layout `layout/05_die_in_mold.gds`.
+
+```xml
+<Dielectric Name="Mold" Material="Mold" Zmin="0" Zmax="=mold_thickness" Boundary="301" Priority="-1"/>
+<Dielectric Name="Die" Material="Silicon" Zmin="0" Zmax="=die_thickness" Boundary="302"/>
+```
+
+![Use case a: a die in mold compound](../userguide_md_format/images/priority_a_mold.png)
+
+**b. Copper pillars in underfill.** The underfill is a `<Dielectric>` over the whole gap between
+the die and the interposer, and the pillars are a conductor layer in the same z range. A metal
+always wins over a dielectric, so the pillars cut through the underfill. No Priority is needed.
+
+```xml
+<Dielectric Name="Underfill" Material="Underfill" Zmin="100" Zmax="130"/>
+<Layer Name="Pillar" Type="conductor" Material="Copper" Layer="20" Zmin="100" Zmax="130"/>
+```
+
+![Use case b: copper pillars in underfill](../userguide_md_format/images/priority_b_pillars.png)
+
+**c. An air cavity in the substrate.** The cavity, e.g. a local backside etch, is a drawn
+dielectric layer inside the substrate `<Dielectric>`. At equal Priority a drawn dielectric
+layer wins over a `<Dielectric>`, so the cavity replaces the substrate where it is drawn. No
+Priority is needed. The right panel only shows the rule: with `Priority="-1"` on the cavity,
+the substrate keeps the overlap, and the cavity is gone.
+
+```xml
+<Dielectric Name="Substrate" Material="Silicon" Zmin="0" Zmax="200"/>
+<Layer Name="Cavity" Type="dielectric" Material="AIR" Layer="157" Zmin="0" Zmax="120"/>
+```
+
+![Use case c: an air cavity in the substrate](../userguide_md_format/images/priority_c_cavity.png)
+
+**d. An underfill fillet drawn larger than the die.** Here the built-in order is wrong. The
+underfill is a drawn dielectric layer from the interposer up to the fillet height, wider than
+the die, and the die is a `<Dielectric>` that starts inside that range. At equal Priority the
+drawn layer wins, and the underfill replaces the bottom of the die. With `Priority="-1"` on the
+underfill, the die keeps its full volume, and the underfill fills only the gap below it and the
+fillet around it.
+
+```xml
+<Dielectric Name="Die" Material="Silicon" Zmin="140" Zmax="340" Boundary="302"/>
+<Layer Name="Underfill" Type="dielectric" Material="Underfill" Layer="160" Zmin="100" Zmax="200" Priority="-1"/>
+```
+
+![Use case d: an underfill fillet drawn larger than the die](../userguide_md_format/images/priority_d_fillet.png)
+
+**e. A via drawn into its landing pad.** The via layer's z range reaches into the pad above it.
+At equal Priority the conductor wins, so the pad fills the overlap. That is right when the via
+is meant to end at the pad. If the via material should reach its full height, e.g. a tungsten
+plug in an aluminium pad in a thermal model, give the via `Priority="1"`. It matters where the
+two materials differ and both are volumes: in thermal models, and in EM models with
+`conductor_model` `'solve_inside'` or `'solve_inside_skin'`.
+
+```xml
+<Layer Name="Pad" Type="conductor" Material="Aluminium" Layer="30" Zmin="10" Zmax="13"/>
+<Layer Name="Via" Type="via" Material="Tungsten" Layer="31" Zmin="5" Zmax="12" Priority="1"/>
+```
+
+![Use case e: a via drawn into its landing pad](../userguide_md_format/images/priority_e_via.png)
+
+**f. What Priority can't do.**
+
+- Two `<Dielectric>`s that overlap with the same Priority have no winner. gds2palace stops and
+  names both; give the one that should fill the overlap a higher Priority. gds2openEMS prints a
+  warning, and which one fills the overlap is not defined there.
+- A dielectric never wins over a conductor or via, however high its Priority. An air cavity
+  with `Priority="10"` doesn't remove a metal that passes through it.
+- Two conductor layers that touch or overlap still stop an EM model, as before: put a via layer
+  between them. Priority between two conductors matters in thermal models.
+- A sheet (`Zmin` equal to `Zmax`) is not a volume: Priority on it has no effect.
+
+### How the tools apply it
+
+**gds2palace (Palace, Elmer EM and thermal)** cuts each overlap out of the volume with the lower
+Priority before meshing, and prints a line for each overlap of `<Dielectric>`s. A dielectric
+completely inside one with a higher Priority is left out of the model.
+
+**gds2openEMS** gives each volume a CSXCAD priority, which decides the material of each FDTD
+cell. With Priority 0 everywhere these are the values used before: `<Dielectric>` 10, via 50,
+conductor 200, so the model file is the same. A drawn dielectric layer gets 11, below all metals;
+before Priority existed it had 200, the same as a conductor.
+
+**The Stackup Editor** in setupEM has a Priority column on the Dielectric Stack and Layers tabs
+(gray for a sheet). The stackup preview marks two overlapping dielectrics only when their
+Priority is equal.
+
 ## `<Tables>` (thermal conductivity)
 
 Optional, sibling of `<Materials>` and `<ELayers>` directly under `<Stackup>`. Defines named
@@ -334,6 +559,66 @@ The reader sorts the `<Point>`s by `Temperature` (stackup reader 1.10.0 and newe
 order in the file doesn't matter. Two points at the same temperature stop the reader with an
 error.
 
+## Direction-dependent thermal conductivity
+
+Some materials conduct heat better along the wafer than through it. Examples are mold compound
+and laminates with oriented fillers, thin films, GaN and SiC, and layers that average two
+materials, such as a bump layer filled with underfill. A file with `schemaVersion="3.2"`
+(stackup reader 1.11.0 and newer, gds2palace 0.13.0) can give such a material one value for the
+lateral directions and one for the vertical direction:
+
+| Attribute | Direction |
+|-----------|-----------|
+| `ThermalConductivity.xy`, `ThermalConductivityTable.xy` | lateral: x and y, the layout plane |
+| `ThermalConductivity.z`, `ThermalConductivityTable.z` | vertical: z, normal to the wafer |
+
+```xml
+<!-- lateral 0.9, vertical 0.3 W/m/K -->
+<Material Name="Mold" Type="Dielectric" Permittivity="3.8"
+          ThermalConductivity.xy="0.9" ThermalConductivity.z="0.3"/>
+
+<!-- one value for all directions, overridden vertically -->
+<Material Name="BumpLayer" Type="Dielectric" Permittivity="3.5"
+          ThermalConductivity="0.5" ThermalConductivity.z="=k_bump_z"/>
+
+<!-- temperature-dependent: one table per direction -->
+<Material Name="GaN" Type="Semiconductor" Permittivity="9.0"
+          ThermalConductivityTable.xy="GaN_kxy_vs_T" ThermalConductivityTable.z="GaN_kz_vs_T"/>
+```
+
+Rules:
+
+- The plain `ThermalConductivity` or `ThermalConductivityTable` stays the value for all
+  directions. A direction without its own value uses it.
+- The more specific attribute wins: `ThermalConductivity.z` over `ThermalConductivityTable`, for
+  example. Between the two plain attributes, the table wins, as before.
+- A direction has a constant or a table, not both: `ThermalConductivity.z` together with
+  `ThermalConductivityTable.z` stops the reader with an error.
+- Only `.xy` and `.z` exist, and only for thermal conductivity. Another suffix
+  (`ThermalConductivity.x`) or another property (`Permittivity.z`) stops the reader with an
+  error, instead of being ignored.
+- `=` expressions work as in any other attribute.
+
+**Older readers.** A reader before 1.11.0 ignores the `.xy` and `.z` attributes and prints its
+warning about the newer `schemaVersion`. If the file also has a plain `ThermalConductivity`, it
+models the material with that value in all directions. Without one, its thermal setup stops with
+"has no ThermalConductivity defined". There is no need to add a plain value only for older
+readers: that would be a value nobody measured. An older Stackup Editor keeps the `.xy` and `.z`
+attributes when it saves, but doesn't show them.
+
+**Elmer output.** A material with the same value in all directions is written as before. A
+direction-dependent one becomes a diagonal tensor, `Heat Conductivity(3) = Real kx ky kz`. If any
+direction has a table, all directions go into one table with a column per direction, at the
+temperatures of all its tables. Elmer interpolates between the points and extrapolates linearly
+outside them, so this gives the same values as the separate tables. With
+`fill_factor_correction`, the conductivity of a merged via array is scaled by its fill factor in
+every direction. The reader gives the values per direction as `material.thermal_xyz`.
+
+**Stackup Editor.** In the Materials tab, the Thermal Cond. and Thermal Table cells have a
+**…** button. It opens a dialog with the values per direction ("Same in all directions" or
+"Lateral and vertical"). A direction-dependent material shows a summary in these
+cells, e.g. `0.9 · z 0.3`; double-click it or use **…** to edit it.
+
 ## `<Variables>`
 
 A file using `<Variables>`/`=`-expressions declares `schemaVersion="3.1"` (see
@@ -354,6 +639,10 @@ One `<Variable>` element per value:
 |-----------|----------|----------|--------------|
 | `Name`    | yes      | —        | Variable name. Must be unique across `<Variables>`. |
 | `Value`   | yes      | —        | A plain literal (number or string), or a `=`-prefixed expression that may reference other variables (see below). |
+| `Min`, `Max` | no   | —        | Lowest and highest allowed value, numbers or `=` expressions. See [Allowed values](#allowed-values). |
+| `Step`    | no       | —        | Step size for the allowed range, positive; not checked against the value. |
+| `List`    | no       | —        | The allowed values, separated by `;`. Instead of `Min`/`Max`. |
+| `Description` | no   | —        | Help text, e.g. the unit. |
 | `Type`    | no       | inferred | `number` or `string`. For a plain-literal `Value`, an explicit `Type` controls parsing — `Type="string"` keeps a numeric-looking literal as text instead of it being inferred as a number; if omitted, `Type` is inferred by trying to parse `Value` as a number. For a `=`-expression `Value`, `Type` cannot override the computed result's type — it is instead validated against it, and a mismatch is an error. |
 
 ```xml
@@ -370,6 +659,43 @@ Variables may reference other variables regardless of declaration order — reso
 dependency, the same "repeat until no progress, remainder = circular/unresolved → error"
 approach already used for `<Layer Reference="...">` (see
 [Reference-relative positioning (Layers)](#reference-relative-positioning-layers) above).
+
+### Allowed values
+
+A Variable can declare which values it accepts (`schemaVersion="3.2"`, stackup reader 1.11.0).
+The value in the file and every override are checked: `variable_overrides` in a model script,
+setupEM's "Override stackup Variables" grid, and the MCP tools. A value outside stops the model
+setup with an error that names the variable and its allowed values.
+
+```xml
+<Variable Name="total_thickness" Value="200" Min="25" Max="750" Step="5" Description="chip thickness, um" />
+<Variable Name="bulk_thickness" Value="=total_thickness - 20" Min="0" />
+<Variable Name="mold_thickness" Value="400" Min="=die_thickness" Description="at least the die thickness" />
+<Variable Name="thermal_table_choice" Value="Si_vs_T_IHP" Type="string" List="Si_vs_T_IHP;Si_vs_T_literature" />
+```
+
+- **`Min`, `Max`:** the lowest and highest allowed value, inclusive. Either one alone is
+  allowed. They may be `=` expressions, so one variable can limit another: above, the mold
+  must be at least as thick as the die.
+- **`List`:** the allowed values, separated by `;`, numbers or text. Numbers are compared as
+  numbers (`300` and `300.0` are the same). A variable has a `List` or `Min`/`Max`, not both.
+- **`Step`:** a positive step size, shown with the allowed values and meant for spin boxes and
+  parameter sweeps. It is not checked against the value.
+- **`Description`:** help text, e.g. the unit. setupEM shows it as tooltip in its override grid,
+  and the MCP tool `inspect_stackup` reports it.
+- A computed variable (`Value="=..."`) can have limits too. All variables are checked after
+  they are resolved, so an override that makes a computed value invalid stops as well: with
+  `total_thickness` overridden to 15, `bulk_thickness` would be -5.
+
+Examples of the messages:
+
+```
+ERROR: Variable "mold_thickness": the override 150 is below its minimum 200
+ERROR: Variable "total_thickness": 1000 is outside its allowed range 25 .. 750
+ERROR: Variable "thermal_table_choice": the override "Si_new" is not allowed, it must be one of Si_vs_T_IHP, Si_vs_T_literature
+```
+
+A reader older than 1.11.0 ignores these attributes and doesn't check anything.
 
 ### Using a variable or equation in any attribute
 
@@ -415,7 +741,9 @@ to a non-integer value used in one of these attributes is an error, not a silent
 materials_list, dielectrics_list, metals_list = stackup_reader.read_substrate(XML_filename)
 ```
 
-- `materials_list` — all `<Material>` entries (`stackup_materials_list`).
+- `materials_list` — all `<Material>` entries (`stackup_materials_list`). Each material's
+  thermal conductivity per direction is `material.thermal_xyz`: three values for x, y and z, each
+  a constant or a table.
 - `dielectrics_list` — all `<Dielectric>` entries, with z-positions resolved
   (`dielectric_layers_list`).
 - `metals_list` — all `<Layer>` entries, sorted by z with above/below neighbors resolved

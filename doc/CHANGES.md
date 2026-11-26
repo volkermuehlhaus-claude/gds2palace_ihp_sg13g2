@@ -2,203 +2,234 @@
 
 This is an (incomplete) list of changes and new features.
 
+## Highlights
+
+The main new features of the last months, with the version that brought them:
+
+- **Overlapping materials with Priority**, e.g. mold compound drawn over a die (0.13.0)
+- **Thermal conductivity lateral and vertical**, and **limits for stackup variables** (0.13.0)
+- **Datatype per stackup layer**, for technologies with a metal and a keepout on one GDS layer number (0.13.0)
+- **Thermal simulation: heat flux, temperature gradient and heat flow per boundary** (0.13.0)
+- **Tube ports**, for ports that stand for a conductor such as a copper pillar between two chips (0.12.0)
+- **Port walls**: calibrated de-embedding of ports at the layout edge (0.10.0)
+- **Multielement ports**: several shapes as one port, e.g. the fingers of a transistor (0.9.3)
+- **`settings['conductor_model']`**: one setting for the conductor model, for accurate conductor loss (0.9.0)
+
+Each dated section below lists the new features first, then changed behaviour, then fixes.
+
+## 25 November-2026
+
+gds2palace 0.13.0
+
+### New
+
+**Overlapping materials with Priority**  
+Dielectric blocks in the stackup may now overlap, e.g. mold compound drawn over a die. `Priority` sets which material is used where they overlap: the higher number wins. Existing stackups give the same models as before. See "Priority: overlapping volumes" in `doc/XML_stackup_format/XML_stackup_format.md`, with examples.
+
+**Thermal simulation: different thermal conductivity lateral and vertical**  
+A material can have one thermal conductivity in the lateral directions (x, y) and another one vertically (z), e.g. a laminate. See "Direction-dependent thermal conductivity" in `doc/XML_stackup_format/XML_stackup_format.md`.
+
+**Datatype per stackup layer**  
+A `<Layer>` in the stackup can name the GDS datatype it is read from, e.g. `Layer="68" Datatype="20"`. A metal and a keepout can then share one GDS layer number, and a script with `purposelist=[0]` still reads the right shapes. Layers without a `Datatype` are read as before. See "Datatype" in `doc/XML_stackup_format/XML_stackup_format.md`.
+
+**Limits for stackup variables**  
+A stackup variable such as the chip thickness can have a minimum and maximum, or a list of allowed values. A value outside them stops the model setup with a clear message. See "Allowed values" in `doc/XML_stackup_format/XML_stackup_format.md`.
+
+Stackup files that use these new features are marked `schemaVersion="3.2"`. Older gds2palace versions print a warning and ignore the new features.
+
+### Changed behaviour
+
+- `read_gds()` prints a note when the layout has shapes on the layer number of a stackup layer that are not read, e.g. fill shapes on another datatype. `purposelist` can be left out for datatype 0.
+
 ## 23 November-2026
 
 gds2palace 0.13.0
 
-**Fix, Elmer thermal: constant-temperature boundary with several polygons**  
-A constant-temperature boundary drawn as more than one polygon on its GDS layer kept only the last polygon; the others silently had no boundary. Found on a resistor with both terminals held at 300 K on one layer: only one of them was. All polygons now get the boundary.
+### New
 
-**Elmer thermal: touching bodies are allowed**  
-A thermal model now accepts two metal or via bodies that share a face, e.g. a contact passing through resistor poly drawn on `HEAT_RESISTOR`, or a via touching a metal at its side wall: heat crosses the shared face. Before, this stopped with "touches another conductor layer", as it still does for EM models. Models that meshed before give byte-identical meshes. This lets a thermal model carry a resistor's unheated poly heads on `HEAT_RESISTOR` (see "Heat source targets" in `XML_stackup/latest/IHP/README.md`).
+**Thermal simulation: heat flux and temperature gradient**  
+`settings['heat_flux_output'] = True` also writes the heat flux (W/m²) and the temperature gradient (K/m) to the result file, e.g. to show the heat flow as arrows. The result file gets about 50 % larger.
 
-**New, Elmer thermal: heat flux and temperature gradient**  
-`settings['heat_flux_output'] = True` also writes the heat flux (W/m²) and the temperature gradient (K/m) to the result file, as the vector arrays `temperature flux` and `temperature grad`. They are computed per element and averaged within each body, not across bodies. At an interface between two materials, the normal heat flux is continuous and the normal gradient jumps by the conductivity ratio, and a nodal average smears that jump over several elements. In the thermal example, a nodal average put the gradient in the silicon next to the oxide under the heat source 17 times too high, while the per-body values matched the exact element values. The nodes on an interface therefore appear once for each body in the result file. The option costs a few seconds and makes the result file about 50 % larger. Default is False: the result file is then written as before.
+**Thermal simulation: heat flow per constant-temperature boundary**  
+Every thermal model now writes `thermal_heatflow.dat`: the heat flow through each constant-temperature boundary, in W. It shows where the heat goes when a model has several heat sinks. The heat flows always add up to the input power, so they don't tell whether the mesh is fine enough. `python -m gds2palace.scripts.thermal_summary <path>` prints the min/max temperature and the heat flow per boundary.
 
-**New, Elmer thermal: heat flow per constant-temperature boundary**  
-Every thermal model now writes `thermal_heatflow.dat`: the heat flow through each constant-temperature boundary, in W, negative for heat that leaves the model. It shows where the heat goes when a model has several heat sinks. It comes from the residual of the FEM equations at the boundary nodes, so the heat flows add up to the input power on any mesh: it is not a check of the mesh. The new script `thermal_summary.py` (`python -m gds2palace.scripts.thermal_summary <path>`) prints the min/max temperature and the heat flow per boundary with its share of the input power.
+### Changed behaviour
 
-**Fix, Elmer thermal with MPI: one `thermal_results.dat`**  
-With `ELMER_MPI_THREADS` above 1, each process wrote its own `thermal_results.dat.0`, `.1`, ..., and there was no `thermal_results.dat` for the min/max temperature. The values are now combined over the processes into one file.
+- Thermal simulation: two metal or via bodies may now touch, e.g. a contact passing through resistor poly; heat flows across the shared face. A resistor's unheated poly heads can be drawn on `HEAT_RESISTOR` (see "Heat source targets" in `XML_stackup/latest/IHP/README.md`). EM models still stop with "touches another conductor layer".
+- When gmsh has to use its second 3D meshing method (HXT), the message now says that this can take several minutes for models with thin layers of large area. It is not a hang.
 
-**Message when 3D meshing falls back to HXT**  
-When gmsh's Delaunay algorithm fails and gds2palace retries with HXT, the message now says that the optimization step can take several minutes for models with thin layers of large area. In such a model (stacked metal plates of 720 µm with 0.5 µm of oxide between them), that step ran for about 4 minutes with an almost constant element count and looked like a hang. It is needed: with a shorter optimization, elements of zero volume were left in the mesh.
+### Fixes
+
+- Thermal simulation: a constant-temperature boundary drawn as several polygons used only the last polygon.
+- Thermal simulation with MPI (`ELMER_MPI_THREADS` above 1): there was one result file per process and no `thermal_results.dat`. There is one file again.
 
 ## 22 November-2026
 
-gds2palace 0.12.1
+gds2palace 0.11.1, 0.12.0 and 0.12.1
 
-**Changed behaviour: Elmer thermal models converge more reliably**  
-The iterative solver of thermal models (the default, `settings['iterative'] = True`) uses an ILU3 preconditioner instead of ILU1. The thermal conductivity of metal is several hundred times that of the oxide and passivation, and the mesh has thin, flat elements between thin layers, so the matrix is hard to solve. With ILU1, BiCGStabl did not converge on three of four test models: the thermal example with its backside boundary as a sheet, the same with a finer mesh, and an interposer with two heat sources. ILU3 converged on all four, in 5 to 27 s, faster than the direct solver (UMFPACK, 6 to 122 s), with the same temperatures within 0.01 K. A run that still doesn't converge stops after 10000 instead of 100000 iterations, so the error shows within minutes; `settings['iterative'] = False` then selects the direct solver. Elmer EM models are not changed.
+### New
 
-**Stackup reader: four edge cases (`util_stackup_reader.py` 1.10.0)**  
-A `<Layer>` whose `Zmin` and `Zmax` are the same number becomes a sheet also when they are written differently (`"0.4"` and `"0.40"`); before, the text was compared. A negative `<Substrate Offset>` shifts the layers down; before, it was ignored without a message. `<Point>`s of a `<Table>` are sorted by temperature, and two points at the same temperature stop with an error. Two `<Layer>`s with the same `Name` stop with an error; before, the first one was used for `Reference`, ports and heat sources. None of the stackup files in this repository is affected. New tests: `tests/test_stackup_reader.py`.
+**Tube ports** (0.12.0)  
+A via port drawn as a box instead of a line becomes a tube port: the four side walls of the box, as one port. Use it where the port stands for a real conductor, e.g. a copper pillar between two chips that are simulated separately and joined at the pillars. Palace only.
 
-**Changed behaviour, Elmer EM: FEM order 3 runs as order 2**  
-Elmer EM models have solver recipes for order 1 and 2 only, and `settings['order'] = 3`, which is valid for Palace, gave the order-1 recipe without a message. It now runs as order 2, with a warning. The new `doc/EM_model_limitations_Elmer.md` lists this and the other differences between Elmer and Palace models, among them that the Elmer Windows build has no MUMPS, which all Elmer EM solver recipes use. New test: `tests/test_elmer_order.py`.
+**Example: two stacked chips split at the copper pillars** (0.12.0)  
+`more_examples/chiplet_split_at_pillars`: a die flip-chip mounted on an interposer, simulated as two models cut at half pillar height and joined with scikit-rf. The joined result agrees with the one-model reference within 0.03 in |S| up to 100 GHz.
 
-**Fix: Elmer models without ElmerGrid**  
-Creating an Elmer model (EM or thermal) crashed when `ElmerGrid` was not found: on Linux when it was not on the PATH, on Windows when `ELMER_HOME` was not set. `ElmerGrid` is now looked up in `ELMER_HOME`, then on the PATH. Without it, the model files are written and a note gives the command for the mesh conversion.
+### Changed behaviour
 
-**Fix in the thermal example**  
-`BACKSIDEGND` in `more_examples/thermal_simulation_using_Elmer/SG13_interposer_thermal_typicalvalues.xml` had a Zmax 1 µm below its Zmin. The constant-temperature boundary on it then also made a surface 1 µm below the chip, outside the model, which ElmerGrid removed. It is now a `PEC` sheet at the bottom of the substrate, as in the latest IHP stackups. The temperatures don't change. `Elmer_Thermal_Workflow.md` now describes the solver setting.
+- A via port shape whose short side is more than 10 % of its long side is now a tube port; before, it gave one sheet along its edge. Via ports drawn as lines are unchanged. `combine_snp` doesn't de-embed tube ports (0.12.0).
+- Port walls: the calibration standards are solved at ten frequencies instead of four. A shifted reference plane is more accurate, mainly at low frequency. The standards take longer to solve, and results of models with port walls change slightly (0.11.1).
+- Thermal models solve more reliably: the default solver setting was changed, and models that stopped because the solver did not converge now run. If one still fails, set `settings['iterative'] = False` (0.12.1).
+- Elmer EM: `settings['order'] = 3` runs as order 2, with a warning; before, it ran as order 1 without a message. The new `doc/EM_model_limitations_Elmer.md` lists the differences between Elmer and Palace models (0.12.1).
+- Stackup reader, stricter checks: a layer with equal `Zmin` and `Zmax` is a sheet, also when the numbers are written differently (`"0.4"` and `"0.40"`); a negative `<Substrate Offset>` shifts the layers down instead of being ignored; two layers with the same name, or two table points at the same temperature, stop with an error (0.12.1).
 
-gds2palace 0.12.0
+### Fixes
 
-**New: tube ports, for via ports that stand for a conductor with a cross section**  
-A via port shape drawn with an area now gives a tube port: the four side walls of the shape's bounding box, as one Palace multielement port with the given Z0. This is meant for ports that stand for a real conductor, e.g. the copper pillars between two chips that are simulated as two separate models and joined at the pillars. The port current flows on the outline of the drawn shape, as it does on the conductor. In a test with a chip on an interposer, joined by 50 µm copper pillars (a line through two ground-signal-ground pillar groups, 0 to 100 GHz), each half model ended at a PEC sheet at half pillar height and a port stood for each half signal pillar. The two half models joined at these ports differed from the model of the whole assembly by at most 0.012 in |S| with tube ports and by 0.032 with single sheet ports of the same width.
-
-**Changed behaviour: a via port shape with an area**  
-Via ports are drawn as lines, and those are unchanged: one vertical sheet. A shape counts as a line when its short side is at most 10 % of its long side. A shape with more area gave one sheet along its xmin or ymin edge before, and gives a tube port now. All via ports of the shipped examples are lines. `combine_snp` leaves tube ports as they are in the `_deembedded` file: the port's inductance belongs to the conductor that it stands for. The walls of a tube port are marked `"tube": true` in `port_information.json`. Tube ports are for Palace only, like other multielement ports. `combine_extend_snp.py` is version 1.7.
-
-**New example: two stacked chips split at the copper pillars**  
-`more_examples/chiplet_split_at_pillars` simulates a die flip-chip mounted on an interposer, from the public example layouts of IHP OpenIntM4TM2, as two models cut at half pillar height: tube ports on the signal pillars to a PEC cut plane, the results joined with scikit-rf. With one 50 Ω GSG port at each end of the line, the joined 2-port agrees with the one-model reference within 0.03 in |S| up to 100 GHz, mostly a 1.9° phase difference in S21 at 100 GHz. The example also shows how to read two GDS files into one model (mirrored, with a layer number offset) and a stackup with absolute z values for both chips.
-
-gds2palace 0.11.1
-
-**Port walls: smaller error of a reference plane shift**  
-The calibration standards are solved at nine frequencies from fstop/100 to fstop, instead of fstop/20, fstop/5 and fstop. The port and the line are interpolated between these frequencies, and with three of them, this was the largest error of a reference plane shift: a line over a thin ground plane changes its inductance towards low frequency. The line's inductance and capacitance are now also taken from the three points between fstop/100 and fstop/20, when they agree with the point at fstop/20; otherwise `combine_snp` prints a note and uses them for the resistance only, as before. In a zero-length thru test (a TopMetal2 line between two port walls, both reference planes shifted to its middle, 0 to 50 GHz), the remaining S11 went from -44 dB to -58 dB for an 880 µm line, and the same for a pair of coupled lines. The standards take longer to solve (ten instead of four frequencies). Results of models with port walls change slightly; standards solved before are solved again. `combine_extend_snp.py` is version 1.6. The test is described in `more_examples/calibrated_boxwall_ports`, section "Sanity check: a zero-length thru".
-
-**Fix**  
-A model without air on all four side walls (`air_around` 0 on xmin, xmax, ymin and ymax, e.g. `[0, 0, 0, 0, 200, 200]`, or two port walls and 0 on the other two sides) lost the air above or below the stack: the dielectrics cut the airbox into two volumes, only one of them got the air material, and Palace removed the elements of the other without an error. The simulation boundary on that side was then at the top or bottom of the stack. Both volumes now get the air material.
+- A model without air on all four sides (`air_around` 0 on xmin, xmax, ymin and ymax) lost the air above or below the stack (0.11.1).
+- Creating an Elmer model crashed when `ElmerGrid` was not found. Now the model files are written, and a note gives the command for the mesh conversion (0.12.1).
+- Thermal example: `BACKSIDEGND` in `SG13_interposer_thermal_typicalvalues.xml` had its Zmax below its Zmin. The temperatures don't change (0.12.1).
 
 ## 19 November-2026
 
 gds2palace 0.11.0
 
-**Changed dependency: gdstk instead of gdspy**  
-The GDSII reader uses [gdstk](https://github.com/heitzmann/gdstk) instead of gdspy, which is no longer maintained and whose polygon fracturing could hang. `pip install gds2palace` installs gdstk. The results are the same: every layer of the shipped examples reads with the same area as before, and their model files are unchanged. The examples that build layouts with gdspy (`inductor_synthesis_no_external_library`, the pcLab examples) need `pip install gdspy`. The mirror/offset options of `read_gds()` now also move paths; before, only polygons moved.
+### Changed behaviour
 
-**Changed behaviour: the cell read without a cell name**  
-With `cellname=""` (or a name not in the file), `read_gds()` reads the design cell: the top-level cell with the largest bounding box, never KLayout's `$$$CONTEXT_INFO$$$`. Before, it read the first top-level cell, which depends on the order in the file and was `$$$CONTEXT_INFO$$$` in some KLayout files. gds_prepare_for_EM 1.8, gds2openEMS, setupEM and the MCP server use the same rule (`select_design_cell()`).
+- **gdstk instead of gdspy:** layouts are read with [gdstk](https://github.com/heitzmann/gdstk) instead of gdspy, which is no longer maintained and could hang. `pip install gds2palace` installs it, and results are the same. The examples that build layouts with gdspy need `pip install gdspy`.
+- **The cell read without a cell name:** with `cellname=""`, `read_gds()` reads the top-level cell with the largest bounding box, never KLayout's `$$$CONTEXT_INFO$$$`. Before, it read the first top-level cell in the file. gds_prepare_for_EM 1.8, gds2openEMS, setupEM and the MCP server use the same rule.
 
-**Fix**  
-Via array merging (`merge_polygon_size > 0`) no longer cuts strips out of merged vias. A via array around an opening, e.g. a guard ring of contacts, came out cut open: shrinking back after merging opened the slit that encodes the hole, and, for large arrays, the lines along which the merged shape was split into pieces. The same for derived layers with a negative `Oversize`. None of the shipped examples is affected.
+### Fixes
+
+- Via array merging (`merge_polygon_size > 0`) cut merged vias open where a via array surrounds an opening, e.g. a guard ring of contacts.
 
 ## 15 November-2026
 
 gds2palace 0.10.7
 
-**Changed behaviour: the frequencies that replace DC**  
-With `fstart = 0`, gds2palace simulates two low frequency points instead of 0 Hz, and `combine_snp` extrapolates the 0 Hz point of the `_dc` file from them. These points were always 10 MHz and 20 MHz. For a mesh finer than 0.5 um (`refined_cellsize` or any `refined_cellsize_override` value) they now move up: the first one is 5 MHz*um divided by the smallest cell size, rounded up to a full MHz, the second one twice that (25 and 50 MHz at 0.2 um, 100 and 200 MHz at 0.05 um). Models with cell sizes of 0.5 um and more keep 10 and 20 MHz. Reason: on such a fine mesh the solver breaks down at low frequency, in all Palace versions tested (0.17 to 0.19): Palace could stop with `SuperLUSolver: Found a singular matrix`, or the solver did not converge. When the point is raised, the console message `Start frequency changed from DC to ... GHz!` gets a second line that says why. A low `fstart` or `fpoint` that you set yourself is not changed. See the FAQ, "Why can't I simulate at 0 Hz, and how is DC handled?".
+### Changed behaviour
 
-**Fix**  
-The `_dc` Touchstone file written by `combine_snp` (`combine_extend_snp.py` 1.5) keeps all simulated frequency points now and only adds the 0 Hz point in front. Before, a result with the two low frequency points of `fstart = 0` was resampled to a uniform frequency grid: the simulated points, among them the two low ones, were replaced by interpolated values at slightly different frequencies (e.g. 0.4902 GHz steps instead of 0.5 GHz). The 0 Hz value itself is unchanged. For the smooth results checked, the interpolated S-parameters were within 0.004 of the simulated ones. The file is no longer uniformly spaced when the sweep starts at 0 Hz.
+- **The frequencies that replace DC:** with `fstart = 0`, gds2palace simulates two low frequency points instead of 0 Hz, normally 10 and 20 MHz. For a mesh finer than 0.5 µm they are now higher (e.g. 25 and 50 MHz at 0.2 µm), because Palace can fail at very low frequency on such a fine mesh ("SuperLUSolver: Found a singular matrix"). See the FAQ, "Why can't I simulate at 0 Hz, and how is DC handled?".
 
-## 13 November-2026
+### Fixes
 
-gds2palace 0.10.6
-
-**Fix**  
-Port walls with a reference plane shift or a port wall extension: R and Q below fstop/20 were wrong. The standards were solved at fstop/20, fstop/5 and fstop only, and below fstop/20 the feed line's loss was extrapolated with sqrt(f), towards zero at DC. A thin line's resistance stays at its DC value there, so too little of it was removed. Example: an rfcmim capacitor with two 35 µm feed lines, series resistance at 0.01 GHz 0.74 Ω instead of 0.25 Ω (PDK model 0.25 Ω). The standards are now also solved at the model's lowest frequency, which gives the line's resistance there, and between the solved frequencies the loss is interpolated linearly in sqrt(f). Results without a shift or extension change very little, capacitance and inductance not at all. Models written by an earlier version keep their own `combine_extend_snp.py` and their results; write the model again to get the fix. `combine_extend_snp.py` is 1.4.
-
-**New example**  
-`more_examples/calibrated_boxwall_ports`: step-by-step guide to port walls on an rfcmim capacitor, compared with the PDK model.
+- The `_dc` Touchstone file keeps all simulated frequency points and only adds the 0 Hz point in front. Before, the simulated points were replaced by interpolated values on a uniform frequency grid.
 
 ## 13 November-2026
 
-gds2palace 0.10.5
+gds2palace 0.10.5 and 0.10.6
 
-**Fix**  
-Port walls with a conformal passivation stackup (`SG13G2_FEM_200um_passi3D.xml`): the passivation around TopMetal2 is a derived layer grown by 0.6 µm, and where a line ends at the layout edge (a region cut out of a larger layout, e.g. by the KLayout plug-in) it reached 0.6 µm past the edge. The port wall was then placed there, away from the ports, and stopped with "port wall ... has no port". The layout edge of port walls, wall extensions and PEC walls at the layout edge is now the drawn one, and derived layers are cut there on those sides. Models without such a wall are unchanged.
+### New
 
-## 12 November-2026
+**Example: port walls step by step** (0.10.6)  
+`more_examples/calibrated_boxwall_ports`: guide to port walls on an rfcmim capacitor, compared with the PDK model.
 
-gds2palace 0.10.4
+### Fixes
 
-**Changes**  
-Tests on the shipped examples: `python -m pytest tests` runs the scripts in `workflow/` and selected ones from `more_examples/` and compares the GDS reader output and the gmsh model with the layout and the stackup. `python -m pytest tests -m examples` also meshes the models and compares the model files with stored records. See `tests/README.md`. Both run on GitHub for every push and pull request.
-
-Without a display (Linux with neither `DISPLAY` nor `WAYLAND_DISPLAY` set, e.g. over ssh, in a container or a batch job), the model is built without the gmsh window, as with `settings['no_gui'] = True`, and a line in the output says so. Before, such a script stopped with "Can't open display" unless it set `no_gui`. This also covers scripts exported from setupEM.
-
-`combine_extend_snp.py` (`combine_snp`) has `--help` and `--version`, and takes the folder to search as an optional argument (default: the current folder). Before, any option was ignored and the conversion ran.
-
-**Fix**  
-Repair of polygons with cutouts: a splitting step that could stall model generation without a message is no longer used. A polygon that cannot be repaired without it is left as read, with the existing warning.
-
-**Documentation**  
-User's guide, chapter "Dielectric loss modelling": redone with `conductor_model = 'solve_inside_skin'` and Palace 0.19.0, against the measured 880 µm and 2580 µm lines, including the line's attenuation from the two lengths. The earlier agreement up to 40 GHz came from the surface model's extra loss in the Metal1 ground plane; with the right conductor loss, a SiO2 loss tangent of about 0.015 explains most of the measured line loss from 20 to 110 GHz. The supplied stackups stay lossless. New section on the loss of the silicon substrate. Chapter "Conductor loss modelling" and the appendix no longer describe conductors as always hollow; the appendix describes the PEC material and how dielectrics and semiconductors are written to Palace (loss tangent or conductivity), and its stackup example uses PEC sheets for SUBGND and BACKSIDEGND (the old one, a sheet with a conductor material, stops with an error). Sheets need a resistor or PEC material.
+- Port walls with a reference plane shift or a port wall extension: R and Q at low frequency (below fstop/20) were wrong, because too little of the feed line's resistance was removed. Example: an rfcmim capacitor with two 35 µm feed lines showed a series resistance of 0.74 Ω at 0.01 GHz instead of 0.25 Ω. Write the model again to get the fix (0.10.6).
+- Port walls with the conformal passivation stackup (`SG13G2_FEM_200um_passi3D.xml`): a model with a line that ends at the layout edge stopped with "port wall ... has no port" (0.10.5).
 
 ## 12 November-2026
 
-gds2palace 0.10.3
+gds2palace 0.10.3 and 0.10.4
 
-**Fix**  
-A metal strip that reaches into a cutout could be missing in the model. It happened when the GDSII file encodes the cutout with its connecting slit along the cutout edge, past the root of the strip, as KLayout can write it. Example: a ground plane with a slot and a feed strip into the slot.
+### New
+
+**User's guide: chapter "Dielectric loss modelling" redone** (0.10.4)  
+With accurate conductor loss, a SiO2 loss tangent of about 0.015 explains most of the measured line loss from 20 to 110 GHz. The supplied stackups stay lossless. New section on the loss of the silicon substrate.
+
+### Changed behaviour
+
+- On Linux without a display (ssh, container, batch job), the model is built without the gmsh window, as with `settings['no_gui'] = True`. Before, the script stopped with "Can't open display" (0.10.4).
+- `combine_snp` has `--help` and `--version`, and takes the folder to search as an optional argument (0.10.4).
+
+### Fixes
+
+- Layouts with cutouts: model generation could stall without a message (0.10.4).
+- A metal strip that reaches into a cutout could be missing in the model, e.g. a feed strip into a slot of a ground plane (0.10.3).
 
 ## 11 November-2026
 
 gds2palace 0.10.2
 
-**Changes**  
-Faster Palace runs without adaptive mesh refinement: the error estimate, which is then only reported, is computed with `EstimatorTol` 1e-2 instead of Palace's default 1e-6. S-parameters are unchanged. Example: a Butler matrix with 8 ports at one frequency took 254 s instead of 507 s.
+### New
 
-**New features**  
-`settings['wall_extension']`: per side, e.g. `{'xmax': 2000}`, continues the layout's cross-section at that edge outward to the wall, for a side that is not a port wall. setupEM writes it for the pieces of a split region.
+**`settings['wall_extension']`**  
+Continues the layout's cross-section outward to the wall, on a side that is not a port wall, e.g. `{'xmax': 2000}`. setupEM uses it for the pieces of a split region.
 
-Port walls with several lines: D (span of the lines + 2 x distance to ground, which sets the length of the standards) is now that of the largest group of coupled lines, not of the whole span of the lines on the wall. This gives shorter standards and a calibration valid to higher frequency.
+### Changed behaviour
 
-**Fix**  
-A via port in the plane of a PEC wall was shorted by the wall, with no message. The model is no longer written, and the error names the port and the side.
+- Faster Palace runs without adaptive mesh refinement, with the same S-parameters. Example: a Butler matrix with 8 ports at one frequency took 254 s instead of 507 s.
+- Port walls with several lines: the calibration standards are shorter and valid to higher frequency. Their length now follows the largest group of coupled lines instead of all lines on the wall.
 
-Port walls: next to a wall with a `port_wall_extension`, the metal in the standards ended at the layout edge. It now continues to the extended wall, as in the model.
+### Fixes
+
+- A via port in the plane of a PEC wall was shorted by the wall, with no message. The model is no longer written, and the error names the port and the side.
+- Port walls: next to a wall with a `port_wall_extension`, the metal in the standards ended at the layout edge instead of at the extended wall.
 
 ## 10 November-2026
+
 gds2palace 0.10.0
 
-**New features**  
-Calibrated de-embedding of ports at a port wall: a box side set to `'PORTWALL'` in `settings['boundary']` is a PEC wall at the layout edge, and the ports on that edge are removed by calibration with two thru-line standards per wall. `run_sim` solves the standards before the model, and `combine_extend_snp.py` writes the `_deembedded` file. New settings `reference_plane_shift`, `deembedding_length`, `port_wall_extension` and `deembedding = 'none'`. Without a port wall, models are unchanged. See "Calibrated de-embedding at port walls" in the user guide.
+### New
 
-Every model's `_data` folder now holds its own `combine_extend_snp.py`, and `combine_snp` runs that copy. Update your `combine_snp` once from `scripts/`.
+**Port walls: calibrated de-embedding of ports at the layout edge**  
+A box side set to `'PORTWALL'` in `settings['boundary']` is a PEC wall at the layout edge, which is the ground of the ports there. These ports are removed from the result by calibration, instead of an estimated port inductance. New settings: `reference_plane_shift`, `deembedding_length`, `port_wall_extension` and `deembedding = 'none'`. See "Calibrated de-embedding at port walls" in the user guide.
 
-First automated tests of gds2palace: `python -m pytest tests`.
+**Margin per side**  
+`settings['margin']` can be a list `[margin_xmin, margin_xmax, margin_ymin, margin_ymax]`.
 
-`settings['margin']` can be set per side, as a list `[margin_xmin, margin_xmax, margin_ymin, margin_ymax]`. A negative margin now stops with an error. A conductor, via or sheet layer that reaches an absorbing boundary gives a warning.
+**Stackups: target layers for heat sources**  
+The latest IHP stackups have `HEAT_TRANSISTOR` (the top 40 nm of Activ) and `HEAT_RESISTOR` (polysilicon on the field oxide). With `Activ` as the target, heat sources were too thick and came out too cool. See "Heat source targets" in `XML_stackup/latest/IHP/README.md`.
 
-Stackups (`XML_stackup/latest/IHP`): two target layers for heat sources, `HEAT_TRANSISTOR` (the top 40 nm of Activ) and `HEAT_RESISTOR` (polysilicon on the field oxide). With `Activ` as the target, heat sources were too thick and came out too cool. EM models are unchanged. See "Heat source targets" in `XML_stackup/latest/IHP/README.md`.
+### Changed behaviour
 
-**Fix**  
-A conductor that reaches the simulation boundary, with margin and `air_around` both 0 on that side, stopped Palace with an MFEM abort when using the `surface` conductor model. See "Conductors at the simulation boundary" in the user guide.
+- Every model's `_data` folder holds its own `combine_extend_snp.py`, and `combine_snp` runs that copy. Update your `combine_snp` once from `scripts/`.
+- A negative margin stops with an error. A conductor, via or sheet layer that reaches an absorbing boundary gives a warning.
 
-Elmer thermal: a heat source that partly overlaps another volume lost its mesh refinement.
+### Fixes
 
-A model whose metals are all sheets (zero thickness) stopped with the gmsh error "Difference failed - BOPAlgo_AlertTooFewArguments".
+- A conductor that reaches the simulation boundary (margin and `air_around` both 0 on that side) stopped Palace with the `surface` conductor model. See "Conductors at the simulation boundary" in the user guide.
+- Thermal simulation: a heat source that partly overlaps another volume lost its mesh refinement.
+- A model whose metals are all sheets stopped with a gmsh error.
 
 ## 5 November-2026
+
 gds2palace 0.9.4
 
-**New features**  
-`util_thermal_map`: puts powers from a circuit simulation onto the heat sources of a thermal export from the KLayout EM Export plug-in, by instance name, and reports names that do not match. Command line: `python -m gds2palace.util_thermal_map <name>_thermalmap.json powers.csv <name>.tsimcfg`. setupThermal's **Load powers...** uses it.
+### New
 
-Elmer thermal: `refined_cellsize_override` now works for thermal models. A heat source (`source_<GDS layer>`, e.g. `['source_205', 0.25]`) or a metal layer in the list gets its own mesh size.
+**Thermal simulation: powers from a circuit simulation**  
+`util_thermal_map` puts the powers from a circuit simulation onto the heat sources of a thermal export from the KLayout EM Export plug-in, by instance name. Command line: `python -m gds2palace.util_thermal_map <name>_thermalmap.json powers.csv <name>.tsimcfg`. setupThermal's **Load powers...** uses it.
 
-Elmer thermal: the mesh around a heat source now grows at a fixed rate, 0.3 µm per µm of distance. Before, it grew too fast for small mesh sizes, and the temperature rise came out too low. Models whose maximum size is more than 10 times the mesh size at the sources get more elements.
+**Thermal simulation: mesh size per heat source**  
+`refined_cellsize_override` now works for thermal models: a heat source (e.g. `['source_205', 0.25]`) or a metal layer gets its own mesh size.
 
-**Fix**  
-Elmer thermal: a temperature-dependent thermal conductivity (`ThermalConductivityTable`, e.g. silicon) was taken at 0 K, so temperatures came out too low. The model now iterates until converged. The thermal example gives a temperature rise of 48.0 K instead of 39.7 K. Models with constant thermal conductivities are unchanged.
+### Changed behaviour
 
-Stackups (`XML_stackup/latest/IHP`): Activ's thermal conductivity is now the silicon table `Si_vs_T_IHP` instead of a constant 50 W/m·K. Thermal models of devices come out cooler; EM models are unchanged.
+- Thermal simulation: the mesh around a heat source grows more slowly with distance. Before, it grew too fast for small mesh sizes, and the temperature rise came out too low. Models get more elements.
+- Stackups (`XML_stackup/latest/IHP`): Activ's thermal conductivity is the silicon table `Si_vs_T_IHP` instead of a constant 50 W/m·K. Thermal models of devices come out cooler; EM models are unchanged.
+- Elements of zero or negative volume are reported after meshing: an error for Elmer models, a warning for Palace. A failed ElmerGrid mesh conversion stops with an error.
 
-Elmer thermal: a heat source inside a conductor of its target layer (e.g. an npn emitter in `Activ`) stopped the model with "Polygon on conductor layer source_... touches another conductor layer".
+### Fixes
 
-Mesh check: elements of zero or negative volume are reported after meshing. For Elmer models this is an error with the hint to use a finer mesh; for Palace a warning.
-
-ElmerGrid check: a failed mesh conversion now stops with an error, instead of ElmerSolver reporting a missing mesh folder later.
-
-## 31 October-2026
-gds2palace 0.9.4
-
-**Fix**  
-`read_gds()` reads each GDS layer number once. A stackup can use one GDS layer for several stackup layers (one drawn shape makes all of them, e.g. a MIM top plate and the dielectric below it); `read_gds()` read such a layer once per stackup layer, so its polygons were in the model several times. The current IHP stackups have no shared layers, so their models do not change. `read_gds()` also no longer adds `gds_boundary_layers` to the caller's layer list.
+- Thermal simulation: a temperature-dependent thermal conductivity (`ThermalConductivityTable`, e.g. silicon) was taken at 0 K, so temperatures came out too low. The thermal example gives a temperature rise of 48.0 K instead of 39.7 K. Models with constant thermal conductivities are unchanged.
+- Thermal simulation: a heat source inside a conductor of its target layer (e.g. an npn emitter in `Activ`) stopped the model.
 
 ## 31 October-2026
-gds2palace 0.9.3
 
-**New features**  
-Multielement ports: several shapes on one port layer now become one port with one element per shape, the elements in parallel (a Palace `LumpedPort` with `Elements`; the port impedance stays the given Z0). Use it for a terminal that is spread over several strips, e.g. the source fingers of a multi-finger transistor. Before, only the last shape read became the port, and the others stayed in the model as surfaces without a port. `port_information.json` has one entry per element, with its `element` number. `combine_extend_snp.py` takes one Z0 per port for the Touchstone option line and treats the port inductances of the elements as parallel for de-embedding. Elmer models stop with an error for a multielement port.
+gds2palace 0.9.3 and 0.9.4
 
-**Documentation**  
-User's guide, FAQ and AGENTS.md: the IHP SG13G2 PDK resistors as sheets in the EM model. The sheets have the drawn size and the nominal sheet resistance, without the PDK's width offset and contact end resistance; in Palace, rhigh and rppd come out about 10 % below their PDK value, rsil within about 2 %. See "Accuracy of IHP SG13G2 PDK resistors as sheets" in the user's guide.
+### New
+
+**Multielement ports** (0.9.3)  
+Several shapes on one port layer now make one port, with the shapes in parallel and the given Z0 for the whole port. Use it for a terminal that is spread over several strips, e.g. the source fingers of a multi-finger transistor. Before, only the last shape became the port. Palace only.
+
+**Documentation: IHP SG13G2 PDK resistors as sheets** (0.9.3)  
+The sheets have the drawn size and the nominal sheet resistance; rhigh and rppd come out about 10 % below their PDK value, rsil within about 2 %. See "Accuracy of IHP SG13G2 PDK resistors as sheets" in the user's guide.
+
+### Fixes
+
+- A GDS layer used by several stackup layers (e.g. a MIM top plate and the dielectric below it) was read once per stackup layer, so its polygons were in the model several times. The current IHP stackups have no such layers (0.9.4).
 
 ## 22 October-2026
 gds2palace 0.9.2

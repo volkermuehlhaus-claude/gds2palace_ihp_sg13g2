@@ -2,7 +2,7 @@
 
 Volker Mühlhaus,volker@muehlhaus.com
 ---
-Document version: 2026-11-22
+Document version: 2026-11-25
 
 ## Contents
 [What's New](#whats-new)  
@@ -51,6 +51,7 @@ Document version: 2026-11-22
 &ensp;[Using setupThermal instead of writing Python code](#using-setupthermal-instead-of-writing-python-code)  
 [Appendix](#appendix)  
 &ensp;[Understanding volumes and surfaces created from GDSII](#understanding-volumes-and-surfaces-created-from-gdsii)  
+&ensp;[Overlapping volumes: Priority](#overlapping-volumes-priority)  
 &ensp;[Mapping of Volumes and Surfaces to Palace materials](#mapping-of-volumes-and-surfaces-to-palace-materials)  
 &ensp;[Extended XML stackup format](#extended-xml-stackup-format)  
 &ensp;[Software versions used in this document](#software-versions-used-in-this-document)  
@@ -62,6 +63,10 @@ Document version: 2026-11-22
 
 This chapter gives a brief overview of major features added since the previous edition of this guide. For the complete, dated change log, see [`CHANGES.md`](https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/CHANGES.md) in the repository.
 
+- **Priority for overlapping volumes** (gds2palace 0.13.0). `Priority` on a `<Dielectric>` or `<Layer>` in the stackup decides which volume fills an overlap, so dielectric boxes may overlap, e.g. mold compound around a die. See "Overlapping volumes: Priority" in the Appendix.
+- **Datatype per stackup layer** (gds2palace 0.13.0). A `<Layer>` in the stackup can name the GDS datatype it is read from, so a metal and a keepout can share one GDS layer number, and a script can't read the wrong datatype. See "Datatype" in [`XML_stackup_format.md`](../XML_stackup_format/XML_stackup_format.md).
+- **Allowed values for stackup Variables** (gds2palace 0.13.0). A `<Variable>` can have `Min`/`Max` or a `List` of allowed values and a `Description`; a value or an override outside stops the model setup with an error. See "Extended XML stackup format" in the Appendix.
+- **Thermal conductivity per direction** (gds2palace 0.13.0). `ThermalConductivity.xy` and `ThermalConductivity.z` give a material one thermal conductivity along the wafer and another one through it. See "Stackup XML: thermal material properties" in chapter "Using gds2palace with Elmer FEM for thermal simulation".
 - **settings['conductor_model']** chooses the conductor model in one setting: `'surface'` (default, surface impedance), `'solve_inside'` (conductors meshed as volumes) or `'solve_inside_skin'` (volumes with thin layers along their faces for the skin effect). With the surface model, the peak Q of coils on TopMetal1/TopMetal2 with 2-8 µm traces is 18-30 % too high; for Q and loss, use `'solve_inside'` while designing and `'solve_inside_skin'` for final numbers. See "Choosing the conductor model" in chapter "Conductor loss modelling".
 - `conductor_model` replaces **settings['filled_metals']**. Scripts that set it still work: `True` is the same as `'solve_inside'`, `False` the same as `'surface'`.
 - **settings['z_thickness_factor'] was removed.** Scripts that still set it get a warning, and the full metal thickness is used on all conductor faces. Use `conductor_model` for accurate conductor loss.
@@ -462,7 +467,7 @@ This correction only knows about merging done here, by merge_polygon_size. If th
 
 #### Reading the layout: gds_reader.read_gds()
 
-The model script reads the layout with `gds_reader.read_gds()`. It reads only the layer numbers in its layer list, so the port layers (`simulation_ports.portlayers`) and, for thermal models, the marker layers (`thermal_objects.layers`) must be added to that list first. Besides the layer list, the datatypes (`purposelist`, `[0]` for IHP drawing data), `metals_list` and `merge_polygon_size`, it has these optional parameters:  
+The model script reads the layout with `gds_reader.read_gds()`. It reads only the layer numbers in its layer list, so the port layers (`simulation_ports.portlayers`) and, for thermal models, the marker layers (`thermal_objects.layers`) must be added to that list first. A stackup layer with a `Datatype` in the XML stackup is read from that GDS datatype, whatever `purposelist` says (gds2palace 0.13.0 and newer); all other layers are read from the datatypes in `purposelist`, which can be left out for datatype 0. `read_gds()` prints a note when the layout has shapes on a stackup layer's number that are not read. Besides the layer list, the datatypes (`purposelist`, `[0]` for IHP drawing data), `metals_list` and `merge_polygon_size`, it has these optional parameters:  
 
 | Parameter | Default | Meaning |
 |---|---|---|
@@ -1354,6 +1359,13 @@ For a thermal run, every `<Material>` needs a thermal conductivity. Only steady-
 </Tables>
 ```
 
+- `ThermalConductivity.xy` and `ThermalConductivity.z` give one value for the lateral directions (x and y) and one for the vertical direction (z), for materials that conduct heat better along the wafer than through it, e.g. a laminate (gds2palace 0.13.0 and newer). `ThermalConductivityTable.xy` and `.z` do the same with tables. The plain `ThermalConductivity` stays the value for all directions and is used for a direction without its own value. Elmer gets them as a diagonal tensor, `Heat Conductivity(3)`.
+
+```xml
+<Material Name="Laminate" Type="Dielectric"
+          ThermalConductivity.xy="1.0" ThermalConductivity.z="0.3"/>
+```
+
 gds2palace writes this straight through as an Elmer temperature-dependent material table — no manual `.sif` editing needed. See chapter "Extended XML stackup format" in the Appendix and [`XML_stackup_format.md`](../XML_stackup_format/XML_stackup_format.md) for the full attribute reference.
 
 ### Heat sources and constant-temperature boundaries
@@ -1524,6 +1536,93 @@ As an option, the size of these dielectric layers can be defined by an optional 
 ```
 
 
+### Overlapping volumes: Priority
+
+The model is built from volumes: the dielectric boxes from the `<Dielectrics>` section and the
+shapes drawn on the GDSII layers. Two volumes can overlap, e.g. a mold compound box around a
+die, or a via drawn into its landing pad. Each point of an overlap can have only one material.
+`Priority` on a `<Dielectric>` or `<Layer>` decides which (gds2palace 0.13.0 and newer, stackup
+`schemaVersion="3.2"`): the volume with the higher Priority keeps the overlap, and the overlap
+is cut out of the other one. Priority is a whole number, negative values are allowed, and
+without it a volume has Priority 0.
+
+Priority compares volumes in two groups only: dielectrics (the `<Dielectric>`s and the drawn
+dielectric layers, `Type="dielectric"`) among themselves, and metals (conductor and via layers)
+among themselves. A metal always wins over a dielectric. At equal Priority, the order from
+before Priority existed decides, so a stackup without Priority gives the same model as before:
+
+| Overlap | Winner at equal Priority |
+|---|---|
+| a conductor or via and any dielectric | the conductor or via (always) |
+| a drawn dielectric layer and a `<Dielectric>` | the drawn dielectric layer |
+| a conductor and a via | the conductor |
+| two `<Dielectric>`s | none: the model setup stops with an error that names both |
+
+So you need Priority in two cases: when two `<Dielectric>`s overlap, and when this order gives
+the wrong material for your structure. The figures below are cross-sections through the models
+gds2palace builds; the left panel shows the volumes as written, the others the model.
+
+**a. A die in mold compound.** The mold is one box over the whole package, the die a smaller box
+inside it. With `Priority="-1"` on the mold, the die keeps its full volume and the mold fills the
+space around and above it. No cut-out is computed by hand. Without the Priority, the model setup
+stops, because two `<Dielectric>`s overlap with the same Priority. The complete stackup is
+[`05_priority_and_directional_k_schemaVersion3.2.xml`](../../more_examples/XML_stackup_format_examples/05_priority_and_directional_k_schemaVersion3.2.xml),
+with the layout `layout/05_die_in_mold.gds` in the same folder.
+
+```xml
+<Dielectric Name="Mold" Material="Mold" Zmin="0" Zmax="=mold_thickness" Boundary="301" Priority="-1"/>
+<Dielectric Name="Die" Material="Silicon" Zmin="0" Zmax="=die_thickness" Boundary="302"/>
+```
+
+![A die in mold compound: the mold has Priority -1, the die keeps the overlap](./images/priority_a_mold.png)
+
+**b. Copper pillars in underfill.** The underfill fills the gap between die and interposer, the
+pillars are a conductor layer in the same z range. A metal always wins over a dielectric, so the
+pillars cut through the underfill. No Priority is needed.
+
+![Copper pillars in underfill: the metal wins without a Priority](./images/priority_b_pillars.png)
+
+**c. An air cavity in the substrate.** A local backside etch is a drawn dielectric layer with
+material `AIR` inside the substrate `<Dielectric>`. A drawn dielectric layer wins at equal
+Priority, so the cavity replaces the substrate where it is drawn. No Priority is needed. The
+right panel shows what the rule means: with `Priority="-1"` on the cavity, the substrate keeps
+the overlap and the cavity is gone.
+
+![An air cavity in the substrate: the drawn layer wins at equal Priority](./images/priority_c_cavity.png)
+
+**d. An underfill fillet drawn larger than the die.** Here the built-in order is wrong. The
+underfill is a drawn dielectric layer from the interposer up to the fillet height, wider than
+the die, and the die starts inside that z range. At equal Priority the underfill replaces the
+bottom of the die. With `Priority="-1"` on the underfill, the die stays complete, and the
+underfill fills only the gap below it and the fillet around it.
+
+```xml
+<Layer Name="Underfill" Type="dielectric" Material="Underfill" Layer="160" Zmin="100" Zmax="200" Priority="-1"/>
+```
+
+![An underfill fillet drawn larger than the die: Priority -1 on the underfill keeps the die complete](./images/priority_d_fillet.png)
+
+**e. A via drawn into its landing pad.** At equal Priority the pad fills the overlap, which is
+right when the via ends at the pad. If the via material should reach its full height, e.g. a
+tungsten plug in an aluminium pad in a thermal model, give the via `Priority="1"`. This matters
+where both are volumes: in thermal models, and in EM models with `conductor_model`
+`'solve_inside'` or `'solve_inside_skin'`.
+
+```xml
+<Layer Name="Via" Type="via" Material="Tungsten" Layer="31" Zmin="5" Zmax="12" Priority="1"/>
+```
+
+![A via drawn into its landing pad: Priority 1 on the via gives it the overlap](./images/priority_e_via.png)
+
+**What Priority can't do.** A dielectric never wins over a metal, whatever its Priority. Two
+conductor layers that touch or overlap still stop an EM model: put a via layer between them.
+A sheet (`Zmin` equal to `Zmax`) is not a volume, so Priority has no effect on it.
+
+The model setup prints a line for each overlap of `<Dielectric>`s and who keeps it. A dielectric
+completely inside one with a higher Priority is left out of the model. The full rules are in
+"Priority: overlapping volumes" in [`XML_stackup_format.md`](../XML_stackup_format/XML_stackup_format.md).
+In setupEM's Stackup Editor, Priority is a column on the Dielectric Stack and Layers tabs.
+
 ### Mapping of Volumes and Surfaces to Palace materials 
 
 Palace offers a wide range of options to assign material properties to volumes and surfaces. Our workflow creates that mapping in the Palace control file (config.json), as described below:  
@@ -1664,9 +1763,12 @@ The XML stackup format has grown beyond the basic dielectric stack and conductor
 - **Derived layers** — a layer's geometry can be computed from other layers via boolean operations (`AND`/`OR`/`XOR`/`NOT`) and resizing, instead of only being read directly from GDSII. Used, for example, to derive on-chip resistor geometry from existing process layers.
 - **Reference-relative positioning** — a `<Layer>` or `<Dielectric>` can be positioned as an offset from the top or bottom edge of another named layer/dielectric, instead of requiring an absolute Zmin/Zmax.
 - **Thermal material properties** — `Density`, `ThermalConductivity` and `ThermalConductivityTable` on `<Material>`, plus a `<Tables>` block for temperature-dependent conductivity, used by the Elmer thermal flow described in chapter "Using gds2palace with Elmer FEM for thermal simulation".
-- **Variables** — a `<Variables>` block defines named values, and any attribute value that starts with `=` is an expression of them, e.g. `Thickness="=total_thickness-20"`. The latest IHP stackups use this for the chip and air thickness. A model script can change variables without editing the file: `stackup_reader.read_substrate(XML_filename, variable_overrides={'total_thickness': 100})`. An unknown variable name stops with an error.
+- **Thermal conductivity per direction** — `ThermalConductivity.xy`/`.z` and `ThermalConductivityTable.xy`/`.z` on `<Material>`, see chapter "Stackup XML: thermal material properties".
+- **Datatype** — on `<Layer>`: the GDS datatype the layer is read from, see "Datatype" in the format reference.
+- **Priority** — on `<Dielectric>` and `<Layer>`: where volumes overlap, the higher Priority keeps the overlap, see "Overlapping volumes: Priority" above.
+- **Variables** — a `<Variables>` block defines named values, and any attribute value that starts with `=` is an expression of them, e.g. `Thickness="=total_thickness-20"`. The latest IHP stackups use this for the chip and air thickness. A model script can change variables without editing the file: `stackup_reader.read_substrate(XML_filename, variable_overrides={'total_thickness': 100})`. An unknown variable name stops with an error. A variable can also declare its allowed values, `Min`/`Max` (also `=` expressions) or a `List`, with an optional `Step` and `Description` (gds2palace 0.13.0 and newer): a value in the file or an override outside them stops with an error that names the allowed values, e.g. `Variable "total_thickness": the override 1000 is outside its allowed range 25 .. 750`.
 
-The `schemaVersion` in the `<Stackup>` root element is informational: the reader doesn't need it to read any of these features. It prints a warning if a file declares a newer `schemaVersion` than the installed gds2palace supports (currently 3.1), so an outdated installation is easier to notice. Files with these features declare 3.0 (reference-relative positioning) or 3.1 (variables).
+The `schemaVersion` in the `<Stackup>` root element is informational: the reader doesn't need it to read any of these features. It prints a warning if a file declares a newer `schemaVersion` than the installed gds2palace supports (currently 3.2), so an outdated installation is easier to notice. Files with these features declare 3.0 (reference-relative positioning), 3.1 (variables) or 3.2 (thermal conductivity per direction, Priority, allowed values of variables, Datatype).
 
 The full attribute reference, with examples, is in [`XML_stackup_format.md`](../XML_stackup_format/XML_stackup_format.md), and derived-layer details specifically are in [`derived_layers.md`](../XML_stackup_format/derived_layers.md).
 

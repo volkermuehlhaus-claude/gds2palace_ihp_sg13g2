@@ -1,18 +1,19 @@
 # XML Stackup Format — Feature Progression Examples
 
-Four example stackup files showing how the XML stackup format has evolved, each one
-building on the previous by adding exactly one new capability. All four describe
+Five example stackup files showing how the XML stackup format has evolved. Files 01–04 build
+on each other, each one adding exactly one new capability, and describe
 **the same physical IHP SG13G2 200 µm stackup** (files 01–03 are verified to resolve
 to bit-identical `Zmin`/`Zmax` for every Dielectric and Layer they share), so the diff
 between consecutive files is a clean, minimal illustration of that generation's new
-attributes — not a change in the modeled geometry.
+attributes — not a change in the modeled geometry. File 05 shows `schemaVersion="3.2"` on a
+different structure, a die in mold compound (see "File 05" at the end).
 
 For the full attribute-by-attribute reference, see
 [`../../doc/XML_stackup_format/XML_stackup_format.md`](../../doc/XML_stackup_format/XML_stackup_format.md)
 and [`../../doc/XML_stackup_format/derived_layers.md`](../../doc/XML_stackup_format/derived_layers.md).
 This guide is a tutorial on *what changed and why*, not a restatement of that reference.
 
-## The four files
+## The files
 
 | File | `schemaVersion` | New feature added | Reader version required |
 |---|---|---|---|
@@ -20,6 +21,7 @@ This guide is a tutorial on *what changed and why*, not a restatement of that re
 | [`02_reference_relative_positioning_schemaVersion3.0.xml`](02_reference_relative_positioning_schemaVersion3.0.xml) | `3.0` | `Reference`/`ReferenceEdge` | 1.6.0+ |
 | [`03_variables_and_expressions_schemaVersion3.1.xml`](03_variables_and_expressions_schemaVersion3.1.xml) | `3.1` | `<Variables>` / `"="`-expressions | 1.7.0+ |
 | [`04_full_featureset_schemaVersion3.1.xml`](04_full_featureset_schemaVersion3.1.xml) | `3.1` | Everything above **+** `<DerivedLayers>` **+** `<Tables>`, substrate height driven entirely by a variable | 1.7.0+ |
+| [`05_priority_and_directional_k_schemaVersion3.2.xml`](05_priority_and_directional_k_schemaVersion3.2.xml) | `3.2` | `Priority`, thermal conductivity per direction and allowed values of Variables, on a different structure: a die in mold compound (layout [`layout/05_die_in_mold.gds`](layout/05_die_in_mold.gds)) | 1.11.0+ |
 
 Reader version numbers refer to `util_stackup_reader.__version__` in this repo's
 `workflow/gds2palace/util_stackup_reader.py`. `openems_ihp_sg13g2` carries an
@@ -201,3 +203,58 @@ is a string override (swap which measured/literature dataset a thermal simulatio
 An override for a variable that isn't declared in the file's `<Variables>` section is an
 error (`read_substrate()` prints an error and exits), so this fails fast if a script and
 an XML file drift apart.
+
+
+## Generation 4 → 5: Priority, thermal conductivity per direction and allowed values
+
+File 05 demonstrated schemaVersion 3.2 and is a different stackup than files 01–04: a silicon die in mold compound on a
+package laminate, for an Elmer thermal model. Its layout is
+[`layout/05_die_in_mold.gds`](layout/05_die_in_mold.gds). It shows the features of `schemaVersion="3.2"`:
+
+- **Priority.** The `Mold` box (GDS boundary layer 301, the package outline) and the `Die`
+  box (boundary layer 302) overlap. `Mold` has `Priority="-1"`, so the die keeps the overlap:
+  the mold fills the space around and above the die, and no cut-out has to be computed by
+  hand. Without the Priority, gds2palace stops, because two `<Dielectric>`s overlap with the
+  same Priority.
+- **Thermal conductivity per direction.** `Laminate` has `ThermalConductivity.xy` for the
+  lateral directions and `ThermalConductivity.z` for the vertical direction. gds2palace
+  writes it to Elmer as `Heat Conductivity(3) = Real kx ky kz`.
+- **Allowed values of Variables.** `mold_thickness` has `Min="=die_thickness"`: the mold must be
+  at least as thick as the die. An override below, e.g. `variable_overrides={'mold_thickness': 150}`,
+  stops with `Variable "mold_thickness": the override 150 is below its minimum 200`. Every
+  thickness has a `Description` with its unit.
+
+The thermal conductivities of `Mold` and `Laminate` are placeholders that show the syntax,
+not material data: replace them with the values of your materials. Silicon uses the same
+temperature table as
+[`../thermal_simulation_using_Elmer/`](../thermal_simulation_using_Elmer/). The file has no
+permittivities, so it is for thermal models only.
+
+| GDS layer | Content |
+|---|---|
+| 301 | package outline: x, y size of `Mold` and `Laminate` |
+| 302 | die outline: x, y size of `Die` |
+| 201 | heat source marker, on the layer `Hotspot` (the top 5 µm of the die) |
+| 202 | constant temperature marker, on the sheet `BOTTOM` (the bottom of the laminate) |
+
+A thermal model script uses them like this (see
+[`../thermal_simulation_using_Elmer/`](../thermal_simulation_using_Elmer/) for a complete
+script):
+
+```python
+materials_list, dielectrics_list, metals_list = stackup_reader.read_substrate(
+    "05_priority_and_directional_k_schemaVersion3.2.xml")
+thermal_objects = simulation_setup.all_thermal_objects()
+thermal_objects.add_heatsource(simulation_setup.heatsource(power=1.0, source_layernum=201, target_layername="Hotspot"))
+thermal_objects.add_consttemp(simulation_setup.constanttemp(temp=300, source_layernum=202, target_layername="BOTTOM"))
+layernumbers = metals_list.getlayernumbers() + thermal_objects.layers
+allpolygons = gds_reader.read_gds("layout/05_die_in_mold.gds", layernumbers, purposelist=[0], metals_list=metals_list,
+                                  gds_boundary_layers=dielectrics_list.get_boundary_layers())
+```
+
+The model setup prints `Dielectric "Mold" (Priority -1) overlaps "Die" (Priority 0): the
+overlap belongs to the higher Priority`. The figure below is a cross-section through this model.
+This and four more use cases of Priority are explained in "Priority: overlapping volumes" in
+[`XML_stackup_format.md`](../../doc/XML_stackup_format/XML_stackup_format.md#priority-overlapping-volumes).
+
+![File 05: a die in mold compound, the mold has Priority -1](../../doc/userguide_md_format/images/priority_a_mold.png)

@@ -69,8 +69,18 @@
 #              Layers down instead of being ignored; Table points are sorted by temperature, two points
 #              at the same temperature stop with an error; two Layers with the same Name stop with an
 #              error (Reference and target layer lookups use the name)
+# 25 Nov 2026: 1.11.0: direction-dependent thermal conductivity: ThermalConductivity.xy / .z and
+#              ThermalConductivityTable.xy / .z override the plain attributes for the lateral (x, y) and
+#              vertical (z) direction (stackup_material.thermal_xyz); other direction suffixes stop with
+#              an error; Priority on <Dielectric> and <Layer> (resolve_priority(), .priority): where
+#              volumes overlap, the higher one wins; Min/Max/Step/List/Description on <Variable>:
+#              allowed values, checked for the file's values and overrides
+#              (variables_list.check_allowed_values()); Datatype on <Layer> and <Operand>,
+#              BoundaryDatatype on <Dielectric>: such a layer is read from that GDS datatype and gets a
+#              layer id that holds number and datatype (layer_id(), split_layer_id(), layer_text(),
+#              metal_layer.gds_layernum / .datatype, metal_layers_list.get_layer_datatypes()); schema "3.2"
 
-__version__ = "1.10.0"
+__version__ = "1.11.0"
 
 import os
 import math
@@ -83,8 +93,9 @@ import xml.etree.ElementTree
 # was written by a newer gds2palace than the one doing the reading, since such a file may use
 # attributes this version of the reader doesn't know about yet. Bump this whenever a schema
 # change actually needs a newer reader to be interpreted correctly (e.g. Reference/
-# ReferenceEdge bumped the format to "3.0"; <Variables>/"=" expressions bumped it to "3.1").
-SUPPORTED_SCHEMA_VERSION = "3.1"
+# ReferenceEdge bumped the format to "3.0"; <Variables>/"=" expressions bumped it to "3.1";
+# direction-dependent thermal conductivity (.xy/.z attributes) bumped it to "3.2").
+SUPPORTED_SCHEMA_VERSION = "3.2"
 
 # Reserved Layer Material="..." name for an ideal conductor. Recognized case-insensitively
 # directly on metal_layer.material by util_simulation_setup.py/util_elmer.py, bypassing
@@ -350,6 +361,164 @@ def resolve_int_attr (data, key, variables):
   return str(int(numeric_value))
 
 
+# -------------------- GDS layer with a datatype ---------------------------
+
+# A stackup layer is identified by one number everywhere (polygons, ports, derived layers). A layer with a
+# Datatype (schemaVersion 3.2) gets a layer id that holds both and can be read as it is: a leading 1, five
+# digits for the GDS layer number and five digits for the datatype, e.g. 68/20 -> 10006800020
+# (1 | 00068 | 00020). A layer without Datatype keeps its GDS layer number as its id, so nothing changes for
+# stackups without Datatype. GDS layer numbers and datatypes are below 65536; a chiplet's layer offset keeps
+# the layer number below 100000.
+LAYER_ID_BASE = 10**10
+LAYER_ID_FACTOR = 10**5
+
+
+def layer_id (number, datatype=None):
+  """Layer id of a GDS layer number and an optional datatype (see LAYER_ID_BASE)."""
+  number = int(number)
+  if datatype is None:
+    return number
+  return LAYER_ID_BASE + number * LAYER_ID_FACTOR + int(datatype)
+
+
+def split_layer_id (layer_id_value):
+  """(GDS layer number, datatype or None) of a layer id."""
+  value = int(layer_id_value)
+  if value < LAYER_ID_BASE:
+    return value, None
+  return (value - LAYER_ID_BASE) // LAYER_ID_FACTOR, value % LAYER_ID_FACTOR
+
+
+def layer_text (layer_id_value):
+  """A layer id as text: "126", or "68/20" with a datatype."""
+  number, datatype = split_layer_id(layer_id_value)
+  return str(number) if datatype is None else f"{number}/{datatype}"
+
+
+def resolve_layer_id (data, key, datatype_key, variables):
+  """Layer id from a layer number attribute and its optional datatype attribute, as text like
+     resolve_int_attr(); None if the layer number attribute is absent."""
+  number = resolve_int_attr(data, key, variables)
+  datatype = resolve_int_attr(data, datatype_key, variables)
+  if number is None:
+    if datatype is not None:
+      print(f'ERROR: "{data.get("Name")}": {datatype_key} needs {key}')
+      exit(1)
+    return None
+  if datatype is None:
+    return number
+  if not 0 <= int(datatype) < LAYER_ID_FACTOR or not 0 <= int(number) < LAYER_ID_FACTOR:
+    print(f'ERROR: "{data.get("Name")}": {key}="{number}" {datatype_key}="{datatype}" is not a valid GDS layer/datatype')
+    exit(1)
+  return str(layer_id(number, datatype))
+
+
+def resolve_priority (data, variables):
+  """Priority of a <Dielectric> or <Layer> (attribute "Priority"): where two volumes overlap, the one with the
+     higher priority keeps the overlap. A whole number, negative allowed, default 0. It only orders volumes of
+     the same kind (dielectrics among themselves, conductors and vias among themselves): conductors and vias
+     always win over dielectrics. Equal priorities keep the built-in order (a drawn dielectric layer over a
+     <Dielectric>, a conductor over a via)."""
+  resolved = resolve_attr(data, "Priority", None, variables)
+  if resolved is None or str(resolved).strip() == "":
+    return 0
+  try:
+    value = float(resolved)
+  except (TypeError, ValueError):
+    print(f'ERROR: "{data.get("Name")}": Priority="{resolved}" must be a whole number')
+    exit(1)
+  if value != int(value):
+    print(f'ERROR: "{data.get("Name")}": Priority="{resolved}" must be a whole number')
+    exit(1)
+  return int(value)
+
+
+# -------------------- direction-dependent material properties ---------------------------
+
+# A <Material> property can differ between the lateral directions (x and y, the layout plane)
+# and the vertical direction (z, normal to the wafer): "<Property>.xy" and "<Property>.z" override
+# the plain "<Property>", which stays the value for all directions (and the only one an older
+# reader sees). Supported so far only for thermal conductivity, constant or table.
+DIRECTION_SUFFIXES = ("xy", "z")
+DIRECTIONAL_MATERIAL_ATTRIBUTES = ("ThermalConductivity", "ThermalConductivityTable")
+
+
+class thermal_conductivity_spec:
+  """Thermal conductivity in one direction: a constant `value` (W/m/K), or the name of a <Table>
+     (`table_name`, with the parsed `table` set by parse_substrate()). Exactly one of the two is used:
+     table_name "" means the constant."""
+
+  def __init__ (self, value=0.0, table_name=""):
+    self.value = value
+    self.table_name = table_name
+    self.table = None
+
+  def is_table (self):
+    return self.table_name != ""
+
+  def same_as (self, other):
+    if self.is_table() or other.is_table():
+      return self.table_name == other.table_name
+    return self.value == other.value
+
+  def __str__ (self):
+    return f'table {self.table_name}' if self.is_table() else f'{self.value:g}'
+
+
+def check_directional_attrs (data, material_name):
+  """Stop with an error if a <Material> has a direction suffix this reader doesn't support:
+     another suffix than .xy/.z, or a suffix on another property than thermal conductivity.
+     Without this check such an attribute would be ignored without notice."""
+  for key in data.attrib:
+    if "." not in key:
+      continue
+    base, suffix = key.rsplit(".", 1)
+    if base not in DIRECTIONAL_MATERIAL_ATTRIBUTES:
+      print(f'ERROR: Material "{material_name}": attribute {key} is not supported. Direction-dependent '
+            f'values are supported only for {" and ".join(DIRECTIONAL_MATERIAL_ATTRIBUTES)}.')
+      exit(1)
+    if suffix not in DIRECTION_SUFFIXES:
+      print(f'ERROR: Material "{material_name}": attribute {key} is not supported. Use {base}.xy '
+            f'(lateral, x and y) or {base}.z (vertical).')
+      exit(1)
+
+
+def _present (data, key):
+  """True if the attribute exists and isn't empty."""
+  raw = data.get(key)
+  return raw is not None and raw.strip() != ""
+
+
+def resolve_thermal_conductivity_xyz (data, material_name, variables):
+  """Thermal conductivity of a <Material> in x, y and z, as three thermal_conductivity_spec.
+     The most specific attribute wins: ThermalConductivity.z / ThermalConductivityTable.z for z
+     (.xy for x and y), else the plain ThermalConductivityTable, else the plain ThermalConductivity
+     (default 0). A constant and a table for the same direction stop with an error; for the plain
+     attributes the table wins, as before direction-dependent values existed."""
+  base_table = resolve_attr(data, "ThermalConductivityTable", "", variables)
+  if base_table:
+    base = thermal_conductivity_spec(table_name=base_table)
+  else:
+    base = thermal_conductivity_spec(value=float(resolve_attr(data, "ThermalConductivity", 0, variables)))
+
+  specs = {}
+  for suffix in DIRECTION_SUFFIXES:
+    value_key = f"ThermalConductivity.{suffix}"
+    table_key = f"ThermalConductivityTable.{suffix}"
+    has_value, has_table = _present(data, value_key), _present(data, table_key)
+    if has_value and has_table:
+      print(f'ERROR: Material "{material_name}" has both {value_key} and {table_key}: '
+            f'give either a constant or a table for this direction.')
+      exit(1)
+    if has_table:
+      specs[suffix] = thermal_conductivity_spec(table_name=resolve_attr(data, table_key, "", variables))
+    elif has_value:
+      specs[suffix] = thermal_conductivity_spec(value=float(resolve_attr(data, value_key, 0, variables)))
+    else:
+      specs[suffix] = base
+  return (specs["xy"], specs["xy"], specs["z"])
+
+
 # -------------------- variables ---------------------------
 
 class variable:
@@ -384,6 +553,21 @@ class variable:
     self.value = None      # set once resolved: float or str
     self.resolved = False
     self.overridden = False   # set True by apply_override(), for __str__/debugging
+
+    # allowed values (schemaVersion 3.2), checked by variables_list.check_allowed_values() once all
+    # variables are resolved: Min/Max (numbers or "=" expressions) or List ("a;b;c"), Step for
+    # spin boxes and sweeps only (not enforced), Description as help text
+    def optional(key):
+      raw = data.get(key)
+      return raw.strip() if raw is not None and raw.strip() != "" else None
+    self.min_raw, self.max_raw, self.step_raw = optional("Min"), optional("Max"), optional("Step")
+    list_raw = optional("List")
+    self.list_values = [o.strip() for o in list_raw.split(";") if o.strip()] if list_raw else []
+    self.description = data.get("Description") or ""
+    self.minimum = self.maximum = self.step = None   # resolved numbers, set by the check
+    if self.list_values and (self.min_raw is not None or self.max_raw is not None):
+      print(f'ERROR: Variable "{self.name}" has both List and Min/Max: give a list or a range, not both')
+      exit(1)
     self.is_expression = isinstance(self.raw_value, str) and self.raw_value.startswith("=")
 
     if not self.is_expression:
@@ -454,6 +638,26 @@ class variable:
     self.resolved = True
     self.overridden = True
     self._check_declared_type()
+
+
+  def allowed_values_text (self):
+    """The allowed values as text, e.g. "25 .. 750, step 5", "min 0" or "one of 200, 300, 750"; "" without limits.
+       Min/Max/Step as numbers once check_allowed_values() has run, else as written."""
+    if self.list_values:
+      return "one of " + ", ".join(self.list_values)
+    def shown(number, raw):
+      return f"{number:g}" if number is not None else (raw if raw is not None else "")
+    if self.min_raw is not None and self.max_raw is not None:
+      text = f"{shown(self.minimum, self.min_raw)} .. {shown(self.maximum, self.max_raw)}"
+    elif self.min_raw is not None:
+      text = f"min {shown(self.minimum, self.min_raw)}"
+    elif self.max_raw is not None:
+      text = f"max {shown(self.maximum, self.max_raw)}"
+    else:
+      text = ""
+    if self.step_raw is not None:
+      text += (", " if text else "") + f"step {shown(self.step, self.step_raw)}"
+    return text
 
 
   def __str__ (self):
@@ -565,6 +769,63 @@ class variables_list:
       remaining = still_remaining
 
 
+  def check_allowed_values (self):
+    """Check every variable's resolved value (from the file or an override) against its Min/Max or
+       List: ERROR/exit(1) outside them. Min/Max may be "=" expressions of other variables. Run after
+       resolve_all(). Step must be positive but is not enforced on the value."""
+    values = self.as_dict()
+
+    def number(var, key, raw):
+      try:
+        result = _eval_expression(raw[1:], values) if raw.startswith("=") else float(raw)
+      except (_ExpressionError, _UndefinedVariableError, ValueError) as e:
+        print(f'ERROR: Variable "{var.name}": {key}="{raw}" is not a number or a valid expression ({e})')
+        exit(1)
+      if not isinstance(result, (int, float)):
+        print(f'ERROR: Variable "{var.name}": {key}="{raw}" must be a number')
+        exit(1)
+      return float(result)
+
+    for var in self.variables:
+      shown = f'{var.value:g}' if isinstance(var.value, float) else f'"{var.value}"'
+      source = "the override " if var.overridden else ""
+      if var.list_values:
+        if isinstance(var.value, float):
+          try:
+            allowed = [float(o) for o in var.list_values]
+          except ValueError:
+            print(f'ERROR: Variable "{var.name}": List="{";".join(var.list_values)}" must be numbers, like its value')
+            exit(1)
+          ok = any(abs(var.value - a) <= 1e-12 * max(1.0, abs(a)) for a in allowed)
+        else:
+          ok = var.value in var.list_values
+        if not ok:
+          print(f'ERROR: Variable "{var.name}": {source}{shown} is not allowed, it must be one of '
+                f'{", ".join(var.list_values)}')
+          exit(1)
+      if var.min_raw is not None or var.max_raw is not None or var.step_raw is not None:
+        if not isinstance(var.value, float):
+          print(f'ERROR: Variable "{var.name}": Min, Max and Step need a number, its value is {shown}')
+          exit(1)
+        var.minimum = number(var, "Min", var.min_raw) if var.min_raw is not None else None
+        var.maximum = number(var, "Max", var.max_raw) if var.max_raw is not None else None
+        var.step = number(var, "Step", var.step_raw) if var.step_raw is not None else None
+        if var.step is not None and var.step <= 0:
+          print(f'ERROR: Variable "{var.name}": Step="{var.step_raw}" must be positive')
+          exit(1)
+        below = var.minimum is not None and var.value < var.minimum
+        above = var.maximum is not None and var.value > var.maximum
+        if below or above:
+          if var.minimum is not None and var.maximum is not None:
+            limit = f"outside its allowed range {var.minimum:g} .. {var.maximum:g}"
+          elif below:
+            limit = f"below its minimum {var.minimum:g}"
+          else:
+            limit = f"above its maximum {var.maximum:g}"
+          print(f'ERROR: Variable "{var.name}": {source}{shown} is {limit}')
+          exit(1)
+
+
 # -------------------- material types ---------------------------
 
 class stackup_material:
@@ -600,6 +861,25 @@ class stackup_material:
     self.thermalcond = float(resolve_attr(data, "ThermalConductivity", 0, variables))
     self.thermaltablename = resolve_attr(data, "ThermalConductivityTable", "", variables)
     self.thermaltable = None
+
+    # per direction (x, y, z), from the .xy/.z attributes or the plain ones above; the tables
+    # are linked by parse_substrate()
+    check_directional_attrs(data, self.name)
+    self.thermal_xyz = resolve_thermal_conductivity_xyz(data, self.name, variables)
+
+
+  def thermal_is_directional (self):
+    """True if the thermal conductivity differs between directions."""
+    x, y, z = self.thermal_xyz
+    return not (x.same_as(y) and x.same_as(z))
+
+
+  def thermal_description (self):
+    """Short text of the thermal conductivity, e.g. "1.4", "table Si_k" or "xy 0.9, z 0.3"."""
+    x, _, z = self.thermal_xyz
+    if self.thermal_is_directional():
+      return f'xy {x}, z {z}'
+    return str(z)
 
 
   def __str__ (self):
@@ -730,7 +1010,9 @@ class dielectric_layer:
 
     self.is_top = False
     self.is_bottom = False
-    self.gdsboundary = resolve_int_attr(data, "Boundary", variables)  # optional entry in stackup file
+    # optional entry in stackup file; a layer id with BoundaryDatatype (see layer_id())
+    self.gdsboundary = resolve_layer_id(data, "Boundary", "BoundaryDatatype", variables)
+    self.priority = resolve_priority(data, variables)  # where dielectrics overlap, the higher one wins
 
     self.metals_inside = [] # metals that are located inside this dielectric, set by function
 
@@ -1018,7 +1300,8 @@ class dielectric_layers_list:
        not an error - so interposer-vs-chiplet pairs must be excluded here just as much as
        chiplet-vs-different-chiplet pairs. Only two dielectrics that are both meant to
        describe the *same* single column (both interposer, or both the same chiplet's own
-       subtree) can never legitimately overlap. Call only after chiplet_groups has been set
+       subtree) can never legitimately overlap, unless they have different Priority (then the
+       higher one wins, an intended overlap). Call only after chiplet_groups has been set
        (i.e. after detect_chiplet_groups() has run). Backs both find_z_overlaps() (text
        warnings) and the Stackup Preview's per-slab overlap outline
        (compute_stackup_layout()/InteractiveRegionItem in setup_common.py).
@@ -1029,6 +1312,8 @@ class dielectric_layers_list:
       for b in self.dielectrics[i + 1:]:
         if group_id.get(a) != group_id.get(b):
           continue
+        if a.priority != b.priority:
+          continue  # an intended overlap: the higher Priority wins
         overlap = min(a.zmax, b.zmax) - max(a.zmin, b.zmin)
         if overlap > self._Z_OVERLAP_EPSILON:
           pairs.append((a, b))
@@ -1246,12 +1531,20 @@ class metal_layer:
     if variables is None:
       variables = variables_list()
     self.name = resolve_attr(data, "Name", None, variables)
-    self.layernum = resolve_int_attr(data, "Layer", variables)
+    # layernum identifies the layer everywhere. With a Datatype it is a layer id that holds both (see
+    # layer_id()); gds_layernum and datatype are what is read from the layout
+    self.gds_layernum = resolve_int_attr(data, "Layer", variables)
+    datatype = resolve_int_attr(data, "Datatype", variables)
+    self.datatype = int(datatype) if datatype is not None else None
+    self.layernum = resolve_layer_id(data, "Layer", "Datatype", variables)
     self.type = resolve_attr(data, "Type", None, variables).upper()
     self.material = resolve_attr(data, "Material", None, variables)
 
     self.reference = resolve_attr(data, "Reference", None, variables) or None
     self.reference_edge = resolve_attr(data, "ReferenceEdge", "Top", variables)
+    # where volumes overlap, the higher one wins: dielectric layers among themselves and with the
+    # <Dielectrics>, conductors and vias among themselves; no effect on a sheet
+    self.priority = resolve_priority(data, variables)
 
     zmin_attr = resolve_attr(data, "Zmin", None, variables)
     zmax_attr = resolve_attr(data, "Zmax", None, variables)
@@ -1461,6 +1754,12 @@ class metal_layers_list:
     return layernumbers 
 
 
+  def get_layer_datatypes (self):
+    """GDS layer number and datatype of every stackup layer: {layer name: (number, datatype or None)}.
+       None: the layer has no Datatype and is read from the datatypes given to read_gds()."""
+    return {metal.name: split_layer_id(metal.layernum) for metal in self.metals}
+
+
   def has_references (self):
     """List of names of layers that use Reference-based (offset) positioning.
     Returns:
@@ -1601,7 +1900,8 @@ class derived_layer:
 
     self.operands = []
     for operand in data.findall("Operand"):
-      self.operands.append(resolve_int_attr(operand, "Layer", variables))
+      # a layer id with Datatype: that datatype of the layout, whatever the caller's datatype list says
+      self.operands.append(resolve_layer_id(operand, "Layer", "Datatype", variables))
 
     if self.operation == "SIZE":
       if len(self.operands) != 1:
@@ -1860,6 +2160,7 @@ def parse_substrate (substrate_root, variable_overrides=None):
       variables.append (variable(data))
   variables.apply_overrides(variable_overrides)
   variables.resolve_all()
+  variables.check_allowed_values()   # Min/Max/List, also for overrides
 
   # get materials  from  XML
   materials_list = stackup_materials_list() # initialize empty list
@@ -1891,6 +2192,9 @@ def parse_substrate (substrate_root, variable_overrides=None):
       material.thermaltable = thermal_tables.get(material.thermaltablename)
     else:
       material.thermaltable = None
+    for spec in material.thermal_xyz:
+      if spec.is_table():
+        spec.table = thermal_tables.get(spec.table_name)
 
   # calculate z positions in dielectric layers, after reading all of them
   dielectrics_list.calculate_zpositions()
@@ -1948,6 +2252,21 @@ def parse_substrate (substrate_root, variable_overrides=None):
   if derived_layers_section is not None:
     for data in derived_layers_section.findall("DerivedLayer"):
       metals_list.derived_layers.append (derived_layer(data, variables))
+
+  # Datatype and derived layers: a derived layer is computed, nothing is read from the layout for it
+  derived_numbers = set(metals_list.derived_layers.getlayernumbers())
+  for metal in metals_list.metals:
+    if metal.datatype is not None and int(metal.gds_layernum) in derived_numbers:
+      print(f'ERROR: Layer "{metal.name}" has a Datatype, but its layer number {metal.gds_layernum} is a derived '
+            'layer: remove the Datatype')
+      exit(1)
+  for derived in metals_list.derived_layers.derived_layers:
+    for operand in derived.operands:
+      number, datatype = split_layer_id(operand)
+      if datatype is not None and number in derived_numbers:
+        print(f'ERROR: DerivedLayer "{derived.name}": the Operand with Layer="{number}" is a derived layer '
+              'and can have no Datatype')
+        exit(1)
 
   # get substrate offset, required for v2 stackup file version
   offset = 0

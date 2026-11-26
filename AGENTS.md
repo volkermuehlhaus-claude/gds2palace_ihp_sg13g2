@@ -103,7 +103,10 @@ clone, it is [`workflow/gds2palace/`](workflow/gds2palace/).
   `$$$CONTEXT_INFO$$$` (gds2palace 0.11 and newer; before, the first top-level
   cell). Hierarchy is flattened.
 - Only the layer numbers in `layerlist` and the datatypes in `purposelist` are
-  read. IHP drawing data is datatype 0: use `purposelist=[0]`.
+  read. IHP drawing data is datatype 0: use `purposelist=[0]`. A stackup layer
+  with a `Datatype` in the XML is read from that datatype instead, whatever
+  `purposelist` says (gds2palace 0.13.0 and newer). `read_gds()` prints a note
+  when shapes on a stackup layer's number are not read: check it.
 - Units: the GDSII coordinates are used as they are, in units of
   `settings['unit']` (normally `1e-6`, i.e. microns).
 - **Ports** are polygons on extra layers that are not in the stackup, by

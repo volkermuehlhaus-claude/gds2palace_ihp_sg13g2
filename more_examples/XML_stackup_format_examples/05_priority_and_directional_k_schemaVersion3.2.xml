@@ -1,0 +1,68 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Stackup schemaVersion="3.2">
+  <!-- Direction-dependent thermal conductivity (.xy/.z) and Priority require gds2palace util_stackup_reader.py version 1.11.0 or newer -->
+  <!-- ============================================================ -->
+  <!-- File description: XML stackup format example 5: schemaVersion 3.2.
+  A silicon die in mold compound on a package laminate, for an Elmer thermal model.
+  - Priority: the Mold box (GDS boundary 301) overlaps the Die box (GDS boundary 302).
+    Mold has Priority="-1", so the die keeps the overlap: the mold fills the space
+    around and above the die, without a cut-out computed by hand.
+  - Thermal conductivity per direction: the laminate has one value for the lateral
+    directions (ThermalConductivity.xy) and one for the vertical direction
+    (ThermalConductivity.z).
+  - Allowed values of Variables: the mold must be at least as thick as the die
+    (Min="=die_thickness"); a value or an override below stops with an error.
+  The thermal conductivities of Mold and Laminate are placeholders that show the
+  syntax, not material data: replace them with the values of your materials. No permittivities are given: this file is for thermal
+  models only. Layout: layout/05_die_in_mold.gds. See README.md in this folder. -->
+  <!-- ============================================================ -->
+  <Variables>
+    <!-- allowed values: the mold covers the die, the die holds its heat source layer -->
+    <Variable Name="laminate_thickness" Value="100" Min="0" Description="laminate thickness, um" />
+    <Variable Name="die_thickness" Value="200" Min="=hotspot_thickness" Description="die thickness, um" />
+    <Variable Name="mold_thickness" Value="400" Min="=die_thickness" Description="mold thickness, um, at least the die thickness" />
+    <Variable Name="hotspot_thickness" Value="5" Min="0" Description="heat source layer at the top of the die, um" />
+  </Variables>
+  <Materials>
+    <Material Name="Silicon" Type="Semiconductor" Conductivity="2" ThermalConductivityTable="SiliconThermalCond" Color="01e0ff" />
+    <Material Name="Mold" Type="Dielectric" ThermalConductivity="1.0" Color="a0a0a0" />
+    <Material Name="Laminate" Type="Dielectric" ThermalConductivity.xy="1.0" ThermalConductivity.z="0.3" Color="b5d68c" />
+  </Materials>
+  <ELayers LengthUnit="um">
+    <Dielectrics>
+      <!-- Mold and Die overlap: the higher Priority (Die, 0) keeps the overlap -->
+      <Dielectric Name="Mold" Material="Mold" Zmin="0" Zmax="=mold_thickness" Boundary="301" Priority="-1" />
+      <Dielectric Name="Die" Material="Silicon" Zmin="0" Zmax="=die_thickness" Boundary="302" />
+      <Dielectric Name="Laminate" Material="Laminate" Zmin="=-laminate_thickness" Zmax="0" Boundary="301" />
+    </Dielectrics>
+    <Layers>
+      <!-- heat source target: the top of the die (nothing drawn on layer 310, a heat source marker uses its z range and material) -->
+      <Layer Name="Hotspot" Type="conductor" Material="Silicon" Layer="310" Reference="Die" ReferenceEdge="Top" Zmin="=-hotspot_thickness" Zmax="0" />
+      <!-- constant temperature target: the bottom of the laminate -->
+      <Layer Name="BOTTOM" Type="sheet" Material="PEC" Layer="311" Reference="Laminate" ReferenceEdge="Bottom" Zmin="0" Zmax="0" />
+    </Layers>
+  </ELayers>
+  <Tables>
+    <!-- the same silicon table as more_examples/thermal_simulation_using_Elmer/SG13_interposer_thermal_typicalvalues.xml -->
+    <Table Name="SiliconThermalCond">
+      <Point Temperature="280" Value="163.00" />
+      <Point Temperature="290" Value="155.20" />
+      <Point Temperature="300" Value="148.00" />
+      <Point Temperature="310" Value="141.30" />
+      <Point Temperature="320" Value="135.10" />
+      <Point Temperature="330" Value="129.30" />
+      <Point Temperature="340" Value="124.00" />
+      <Point Temperature="350" Value="119.00" />
+      <Point Temperature="360" Value="114.40" />
+      <Point Temperature="370" Value="110.20" />
+      <Point Temperature="380" Value="106.20" />
+      <Point Temperature="390" Value="102.40" />
+      <Point Temperature="400" Value="98.90" />
+      <Point Temperature="410" Value="96.10" />
+      <Point Temperature="420" Value="93.40" />
+      <Point Temperature="430" Value="90.90" />
+      <Point Temperature="440" Value="88.50" />
+      <Point Temperature="450" Value="86.20" />
+    </Table>
+  </Tables>
+</Stackup>

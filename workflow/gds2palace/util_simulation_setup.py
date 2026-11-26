@@ -66,7 +66,7 @@ import types
 
 from . import util_elmer
 from . import util_calibration
-from .util_stackup_reader import PEC_MATERIAL_NAME
+from .util_stackup_reader import PEC_MATERIAL_NAME, thermal_conductivity_spec
 
 # Elmer thermal: away from a refined region (a heat source's box, a metal edge with refined_cellsize_override), the
 # mesh size grows by this much per unit of distance, up to the maximum size. A fixed transition of 30 x the refined
@@ -86,7 +86,8 @@ PEC_VIA_EQUIVALENT_CONDUCTIVITY = 1e10
 # thermal conductivity 401 W/m/K, density 8960 kg/m^3 (CRC Handbook of Chemistry and Physics)
 PEC_THERMAL_EQUIVALENT = types.SimpleNamespace(
     name=f'{PEC_MATERIAL_NAME}_copper', eps=1.0, sigma=PEC_VIA_EQUIVALENT_CONDUCTIVITY,
-    thermalcond=401.0, density=8960.0, thermaltablename="", thermaltable=None)
+    thermalcond=401.0, density=8960.0, thermaltablename="", thermaltable=None,
+    thermal_xyz=(thermal_conductivity_spec(401.0),) * 3)
 
 
 def _is_pec_material (materialname):
@@ -775,6 +776,89 @@ def add_conductor_skin_cores (allpolygons, metals_list, depths_by_layer, notes_b
     return created
 
 
+# Priority (stackup reader 1.11.0): where volumes overlap, the one with the higher Priority keeps the overlap.
+# Overlaps closer than this (in drawing units) are touching faces, not overlaps.
+_OVERLAP_TOLERANCE = 1e-6
+
+
+def _boxes_overlap (a, b):
+    """a, b: (xmin, ymin, zmin, xmax, ymax, zmax). True if they share a volume, not only a face."""
+    return all(min(a[k + 3], b[k + 3]) - max(a[k], b[k]) > _OVERLAP_TOLERANCE for k in range(3))
+
+
+def resolve_dielectric_overlaps (dielectrics_list, tags_created_3D, boxes):
+    """Overlapping <Dielectric> boxes: the overlap is cut out of the one with the lower Priority. Two that overlap
+    with the same Priority stop with an error, as before Priority existed (then the air box couldn't be built).
+    boxes: name -> (xmin, ymin, zmin, xmax, ymax, zmax) of each dielectric's box. Updates tags_created_3D."""
+    priority = {d.name: d.priority for d in dielectrics_list.dielectrics}
+    names = [name for name in boxes if tags_created_3D.get(name)]
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            if priority[a] == priority[b] and _boxes_overlap(boxes[a], boxes[b]):
+                print(f'ERROR: Dielectrics "{a}" and "{b}" overlap and have the same Priority ({priority[a]}). '
+                      'Give the one that should fill the overlap a higher Priority in the stackup XML file.')
+                exit(51)
+    # highest first: a dielectric is cut by the shapes of all higher ones, which are final by then
+    for name in sorted(names, key=lambda n: -priority[n]):
+        higher = [n for n in names if priority[n] > priority[name] and _boxes_overlap(boxes[n], boxes[name])]
+        tools = [(3, tag) for n in higher for tag in tags_created_3D.get(n, [])]
+        if not tools:
+            continue
+        out, _ = gmsh.model.occ.cut([(3, tag) for tag in tags_created_3D[name]], tools, removeObject=True, removeTool=False)
+        pieces = [tag for dim, tag in out if dim == 3]
+        for tag in pieces:
+            gmsh.model.setEntityName(dim=3, tag=tag, name=name)
+        overlapping = ', '.join(f'"{n}" (Priority {priority[n]})' for n in higher)
+        if pieces:
+            tags_created_3D[name] = pieces
+            print(f'Dielectric "{name}" (Priority {priority[name]}) overlaps {overlapping}: the overlap belongs to the higher Priority')
+        else:
+            del tags_created_3D[name]
+            print(f'Dielectric "{name}" (Priority {priority[name]}) is completely inside {overlapping} and is left out')
+    gmsh.model.occ.synchronize()
+
+
+def resolve_dielectric_layer_priorities (dielectrics_list, metals_list, dielectric_tags_created_3D):
+    """Drawn dielectric layers (<Layer Type="dielectric">) give way to a <Dielectric> with a higher Priority: the
+    overlap is cut out of the drawn layer. With equal or lower Priority, the drawn layer wins as before (the
+    dielectrics are cut by all drawn volumes later)."""
+    drawn = {m.name: m.priority for m in metals_list.metals if m.is_dielectric}
+    if not drawn:
+        return
+    stack = {d.name: d.priority for d in dielectrics_list.dielectrics}
+    reported = set()
+    for _, tag in gmsh.model.getEntities(3):
+        name = gmsh.model.getEntityName(3, tag)
+        if name not in drawn:
+            continue
+        bbox = gmsh.model.occ.getBoundingBox(3, tag)
+        tools = [(3, t) for n, tags in dielectric_tags_created_3D.items() if stack.get(n, -math.inf) > drawn[name]
+                 for t in tags if _boxes_overlap(bbox, gmsh.model.occ.getBoundingBox(3, t))]
+        if not tools:
+            continue
+        out, _ = gmsh.model.occ.cut([(3, tag)], tools, removeObject=True, removeTool=False)
+        for dim, piece in out:
+            if dim == 3:
+                gmsh.model.setEntityName(dim=3, tag=piece, name=name)
+        if name not in reported:
+            reported.add(name)
+            print(f'Drawn dielectric layer "{name}" (Priority {drawn[name]}) gives way to dielectrics with a higher Priority where they overlap')
+    gmsh.model.occ.synchronize()
+
+
+def _overlap_class (name, layer_by_name, dielectric_names):
+    """Order of the volumes when the names of overlapping pieces are restored after fragment(): the last one wins.
+    <Dielectric>s and the air box first (they don't overlap anything by then), then drawn dielectric layers, then
+    vias and conductors (always over dielectrics), each by Priority, at equal Priority a conductor over a via,
+    then everything else (heat sources), as before. Equal keys keep their previous order (stable sort)."""
+    layer = layer_by_name.get(name)
+    if layer is None:
+        return (-1, 0, 0) if name in dielectric_names else (2, 0, 0)
+    if layer.is_dielectric:
+        return (0, layer.priority, 0)
+    return (1, layer.priority, 0 if layer.is_via else 1)
+
+
 def create_box_with_meshseed (xmin,ymin,zmin,xmax,ymax,zmax, meshseed):
     """Create a box with given value for mesh seed
     Returns:
@@ -882,6 +966,7 @@ def add_dielectrics (materials_list, dielectrics_list, gds_layers_list, allpolyg
 
 
     # dielectrics from stackup
+    dielectric_boxes = {}
     for dielectric in dielectrics_list.dielectrics:
 
         # get CSX material object for this dielectric layer
@@ -919,7 +1004,10 @@ def add_dielectrics (materials_list, dielectrics_list, gds_layers_list, allpolyg
         box_tag = create_box_with_meshseed (x1, y1, dielectric.zmin, x2, y2, dielectric.zmax, meshseed)
         gmsh.model.setEntityName(dim=3,tag=box_tag, name= dielectricname)
         tags_created_3D[dielectricname].append(box_tag)
+        dielectric_boxes[dielectricname] = (x1, y1, dielectric.zmin, x2, y2, dielectric.zmax)
 
+    # overlapping dielectrics: the higher Priority keeps the overlap
+    resolve_dielectric_overlaps(dielectrics_list, tags_created_3D, dielectric_boxes)
 
 
     # identify airbox
@@ -1193,6 +1281,79 @@ def _thermal_setup_error (message):
     """
     banner = "!" * 70
     return ValueError(f"\n{banner}\nTHERMAL MODEL ERROR: {message}\n{banner}")
+
+
+_DIRECTION_NAMES = ('lateral (x, y)', 'lateral (x, y)', 'vertical (z)')
+_DIRECTION_SUFFIXES = ('.xy', '.xy', '.z')
+
+
+def _thermal_is_directional (material):
+    """True if the material's thermal conductivity differs between directions."""
+    x, y, z = material.thermal_xyz
+    return not (x.same_as(y) and x.same_as(z))
+
+
+def _table_value (points, T):
+    """Value of a sorted (temperature, value) table at T, interpolated linearly, and outside the table
+    extrapolated from the first or last two points. That is what Elmer does with a Variable Temperature table
+    (checked with Elmer 26.2), so a merged table gives the same values as the original tables."""
+    if len(points) == 1:
+        return points[0][1]
+    for (T0, k0), (T1, k1) in zip(points, points[1:]):
+        if T <= T1:
+            break
+    return k0 + (k1 - k0) * (T - T0) / (T1 - T0)
+
+
+def _elmer_heat_conductivity (material, fill_factor=1.0):
+    """Elmer heat conductivity of a stackup material, scaled by a via fill factor: (value, size). size 1: a
+    constant or a Variable Temperature table, as before direction-dependent values existed. size 3: a diagonal
+    tensor (Elmer "Heat Conductivity(3)") with kx ky kz, constant, or one table with a column per direction
+    when any direction has a table."""
+    specs = material.thermal_xyz
+    directional = _thermal_is_directional(material)
+    for spec, direction, suffix in zip(specs, _DIRECTION_NAMES, _DIRECTION_SUFFIXES):
+        if spec.is_table() and spec.table is None:
+            raise _thermal_setup_error(
+                f'Material "{material.name}" uses ThermalConductivityTable "{spec.table_name}", which is not in '
+                'the <Tables> section of the stackup XML file.')
+        if not spec.is_table() and spec.value == 0:
+            if not directional:
+                raise _thermal_setup_error(
+                    f'Material "{material.name}" has no ThermalConductivity defined in the stackup '
+                    'XML file (defaults to 0 W/m/K). Thermal simulation results would be meaningless '
+                    '-- add a ThermalConductivity attribute for this material in the stackup XML file.')
+            raise _thermal_setup_error(
+                f'Material "{material.name}" has no {direction} thermal conductivity in the stackup XML file '
+                f'(defaults to 0 W/m/K) -- add ThermalConductivity{suffix} or ThermalConductivity for this material.')
+
+    if not directional:
+        spec = specs[2]
+        if not spec.is_table():
+            return spec.value * fill_factor, 1
+        table = "Variable Temperature\n    Real\n"
+        for T, k in spec.table.points:
+            table = table + f"      {T:.2f} {k * fill_factor:.2f}\n"
+        return table + "    End", 1
+
+    if not any(spec.is_table() for spec in specs):
+        return 'Real ' + ' '.join(str(spec.value * fill_factor) for spec in specs), 3
+    temperatures = sorted({T for spec in specs if spec.is_table() for T, _ in spec.table.points})
+    table = "Variable Temperature\n    Real\n"
+    for T in temperatures:
+        values = [_table_value(spec.table.points, T) if spec.is_table() else spec.value for spec in specs]
+        table = table + f"      {T:.2f} " + ' '.join(f"{k * fill_factor:.6g}" for k in values) + "\n"
+    return table + "    End", 3
+
+
+def _thermal_conductivity_info (material, fill_factor):
+    """Heat conductivity of a via material scaled by its fill factor, for the fill factor correction report."""
+    x, _, z = material.thermal_xyz
+    if x.is_table() or z.is_table():
+        return 'heat conductivity table scaled by fill factor'
+    if _thermal_is_directional(material):
+        return f'heat conductivity = xy {x.value*fill_factor:.4g}, z {z.value*fill_factor:.4g} W/mK'
+    return f'heat conductivity = {z.value*fill_factor:.4g} W/mK'
 
 
 def _report_pec_layer_in_thermal_model (metal, reported_layers):
@@ -1879,6 +2040,8 @@ def create_model (excite_ports, settings):
     # add dielectric boxes (oxide, substrate, air etc) to gmsh model
     print('Adding dielectrics ...')
     dielectric_tags_created_3D, airbox_bounds = add_dielectrics (materials_list, dielectrics_list, metals_list, allpolygons, margin, air_around, refined_cellsize=refined_cellsize, add_airbox=not elmer_thermal)
+    # a drawn dielectric layer below a <Dielectric> in Priority gives way to it
+    resolve_dielectric_layer_priorities(dielectrics_list, metals_list, dielectric_tags_created_3D)
     
     # separate metal and dielectric volumes
     dielectric_volume_dimtags = []
@@ -1967,6 +2130,12 @@ def create_model (excite_ports, settings):
         name_restore_order = other_indices + filled_indices
     else:
         name_restore_order = range(len(geom_dimtags))
+    # Priority: within drawn dielectric layers and within vias and conductors, the higher Priority is written last
+    # and keeps the overlap; vias and conductors always after the dielectrics
+    layer_by_name = {metal.name: metal for metal in metals_list.metals}
+    dielectric_names = {dielectric.name for dielectric in dielectrics_list.dielectrics} | {'airbox'}
+    name_restore_order = sorted(name_restore_order, key=lambda n: _overlap_class(
+        original_volume_names_dict[geom_dimtags[n][1]], layer_by_name, dielectric_names))
 
     # fill factor follows the name through fragment(), in the same loop and order, so a
     # shared piece always gets the fill factor of whichever original also gave it its name
@@ -2231,10 +2400,7 @@ def create_model (excite_ports, settings):
                     elif _is_pec_material(via_metal.material):
                         sigma_info = 'PEC material, conductivity not scaled'
                     elif via_material is not None and elmer_thermal:
-                        if via_material.thermaltablename == "":
-                            sigma_info = f'heat conductivity = {via_material.thermalcond*bucket["mean_fill_factor"]:.4g} W/mK'
-                        else:
-                            sigma_info = 'heat conductivity table scaled by fill factor'
+                        sigma_info = _thermal_conductivity_info(via_material, bucket["mean_fill_factor"])
                     elif via_material is not None:
                         sigma_info = f'sigma = {via_material.sigma*bucket["mean_fill_factor"]:.4g} S/m'
                     else:
@@ -3010,22 +3176,11 @@ def create_model (excite_ports, settings):
 
                     if elmer_thermal:
                         Elmer_material['density']=material.density
-                        if material.thermaltablename == "":
-                            # single value
-                            if material.thermalcond == 0:
-                                raise _thermal_setup_error(
-                                    f'Material "{material.name}" has no ThermalConductivity defined in the stackup '
-                                    'XML file (defaults to 0 W/m/K). Thermal simulation results would be meaningless '
-                                    '-- add a ThermalConductivity attribute for this material in the stackup XML file.'
-                                )
-                            Elmer_material['thermalcond']=material.thermalcond * via_fill_factor
-                        else:
-                            # table
-                            table = "Variable Temperature\n    Real\n"
-                            for T, k in material.thermaltable.points:
-                              table = table + f"      {T:.2f} {k * via_fill_factor:.2f}\n"
-                            table = table + "    End"
-                            Elmer_material['thermalcond']=table
+                        # constant or table, the same in all directions or per direction (size 3)
+                        thermalcond, size = _elmer_heat_conductivity(material, via_fill_factor)
+                        Elmer_material['thermalcond']=thermalcond
+                        if size == 3:
+                            Elmer_material['thermalcond_size']=3
 
                 
                 if Elmer_material != {}:

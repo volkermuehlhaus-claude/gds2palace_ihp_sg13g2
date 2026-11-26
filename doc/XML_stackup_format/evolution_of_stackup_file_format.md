@@ -3,7 +3,7 @@
 Volker Mühlhaus, volker@muehlhaus.com
 
 ---
-Document version: 2026-08-19
+Document version: 2026-11-25
 
 ## Contents
 [About this document](#about-this-document)  
@@ -13,6 +13,10 @@ Document version: 2026-08-19
 [Overriding Variables from a model script](#overriding-variables-from-a-model-script)  
 [Also arriving with schemaVersion "3.0": Derived Layers](#also-arriving-with-schemaversion-30-derived-layers)  
 [Beyond schemaVersion: Thermal Conductivity Tables](#beyond-schemaversion-thermal-conductivity-tables)  
+[Generation 4: Priority for overlapping volumes (schemaVersion "3.2")](#generation-4-priority-for-overlapping-volumes-schemaversion-32)  
+[Also arriving with schemaVersion "3.2": Thermal conductivity per direction](#also-arriving-with-schemaversion-32-thermal-conductivity-per-direction)  
+[Also arriving with schemaVersion "3.2": Allowed values of Variables](#also-arriving-with-schemaversion-32-allowed-values-of-variables)  
+[Also arriving with schemaVersion "3.2": Datatype per layer](#also-arriving-with-schemaversion-32-datatype-per-layer)  
 [Trying it yourself](#trying-it-yourself)  
 
 ## About this document
@@ -30,9 +34,9 @@ complete, authoritative attribute reference — use that document to look up an 
 rules; use this one to understand why the format looks the way it does and where to find each
 piece in the editor.
 
-Every screenshot in this document was taken from one of the four example files in
+Every screenshot in this document was taken from one of the five example files in
 [`../../more_examples/XML_stackup_format_examples/`](../../more_examples/XML_stackup_format_examples/),
-which walk through the same generations as real, loadable XML files (`01_...` through `04_...`,
+which walk through the same generations as real, loadable XML files (`01_...` through `05_...`,
 plus a `README.md` covering the same ground from the XML side rather than the GUI side). Open any
 of them yourself in the Stackup Editor to follow along.
 
@@ -220,7 +224,7 @@ See [`derived_layers.md`](derived_layers.md) for the full operation reference, i
 chaining derived layers off each other and how self-touching ("keyhole") results are handled
 downstream.
 
-## Beyond schemaVersion: Thermal Conductivity Tables
+## Thermal Conductivity Tables
 
 `ThermalConductivity`, `ThermalConductivityTable`, and `Density` are material parameters that only matter for a *thermal* simulation (the Elmer thermal flow). Note that the optional `Density` parameter is passed through to the Elmer solver but has no effect on a steady-state
 thermal simulation. 
@@ -258,15 +262,115 @@ automatically the moment the file is saved, since the downstream Elmer solver re
 piecewise-linear lookup curve and needs them in order to interpolate correctly.
 
 
+### Remaining shortcomings
+
+With Variables and Thermal Tables, a single chip is described well. Two limits show up as soon
+as a model goes beyond one chip, e.g. a die in a package:
+
+- **Dielectrics must not overlap.** Every `<Dielectric>` fills its whole box. A die in mold
+  compound needs the mold around and above the die, but not inside it. With boxes that must not
+  overlap, the mold has to be split by hand into pieces around the die, and every piece has to
+  follow the die size by hand. Two boxes that do overlap stop the model setup with "overlapping
+  dielectrics in XML stackup file, that is not allowed".
+- **One thermal conductivity for all directions.** A package laminate or a mold compound with
+  oriented fillers conducts heat better along the board than through it. One value per material
+  can't describe both.
+
+## Generation 4: Priority for overlapping volumes (schemaVersion "3.2")
+
+The fix is to let overlapping volumes say which one wins, instead of forbidding the overlap. A
+new column, **Priority**, appears on the Dielectric Stack tab, shown here with example file 05,
+a die in mold compound on a laminate:
+
+![](./images/11_priority_dielectrics_priority_column.png)
+
+`Mold` now simply spans the whole package (Boundary 301, the package outline), the same as
+`Laminate`, and overlaps `Die` (Boundary 302). `Mold` has Priority `-1`, `Die` keeps the default
+(empty, i.e. 0), so the die keeps the overlap: the mold fills the space around and above it,
+and nobody has to compute its pieces. Change the die size in the layout, and the mold follows.
+
+![](../userguide_md_format/images/priority_a_mold.png)
+
+The Layers tab has the same column (gray for sheets, which aren't volumes). Priority only
+compares dielectrics among themselves and metals among themselves; a metal always wins over a
+dielectric. Without Priority, the order of the earlier generations decides, so a file from an
+earlier generation builds the same model as before. The rules and five use cases, from copper
+pillars in underfill to a via drawn into its landing pad, are in
+[Priority: overlapping volumes](XML_stackup_format.md#priority-overlapping-volumes).
+
+## Also arriving with schemaVersion "3.2": Thermal conductivity per direction
+
+The second limit is solved in the same schema version. A material can have one thermal
+conductivity for the lateral directions (x and y) and another for the vertical direction (z):
+`ThermalConductivity.xy` and `ThermalConductivity.z`, or a table per direction with
+`ThermalConductivityTable.xy` and `ThermalConductivityTable.z`. In file 05, the laminate has
+both. On the Materials tab, its Thermal Cond. and Thermal Table cells show a summary and a
+**…** button:
+
+![](./images/12_directional_materials_summary_cells.png)
+
+The button, or a double-click on the summary, opens the dialog for the values per direction:
+
+![](./images/13_directional_dialog.png)
+
+**Lateral and vertical** shows a field for each direction. A field takes a number, an
+`=` expression, or a table from its list. An empty field uses the
+**All directions** value, the plain `ThermalConductivity`, and shows it in gray. That plain
+value keeps its meaning from the earlier generations, so a file without the new attributes means
+the same as before. A reader older than 1.11.0 warns about the newer `schemaVersion` and uses
+only the plain value. The rules are in
+[Direction-dependent thermal conductivity](XML_stackup_format.md#direction-dependent-thermal-conductivity).
+
+## Also arriving with schemaVersion "3.2": Allowed values of Variables
+
+Generation 3 made the stackup's dimensions overridable from a model script or from setupEM, but
+any value was accepted. Override `mold_thickness` in file 05 to 150, thinner than the 200 µm die,
+and the model is built without complaint: the mold no longer covers the die. Nothing in the file
+said that the mold has to be at least as thick as the die.
+
+`schemaVersion="3.2"` lets a Variable say which values it accepts. On the Variables tab, two new
+columns appear, both optional:
+
+![](./images/14_variables_allowed_values_columns.png)
+
+**Allowed values** shows a summary, and its **…** button opens a dialog with three choices:
+**Any value**, a **Range** (`Min`, `Max`, `Step`) or a **List** of values. In file 05,
+`mold_thickness` has `Min="=die_thickness"`: a limit that is itself an expression, so it follows
+the die thickness.
+
+![](./images/15_variables_allowed_values_dialog.png)
+
+The value in the file and every override are checked. The override of 150 now stops the model
+setup with `Variable "mold_thickness": the override 150 is below its minimum 200`. In setupEM's
+override grid, the allowed values are shown next to each variable, and a List becomes a
+dropdown. **Description** holds a help text such as the unit, shown as tooltip there. The rules
+are in [Allowed values](XML_stackup_format.md#allowed-values).
+
+## Also arriving with schemaVersion "3.2": Datatype per layer
+
+Every generation so far named a layer by its GDSII layer number alone. Which datatype of that
+number is read was not in the file: the model script passed it to `read_gds()`, normally datatype
+0. That works for IHP SG13G2, but not for a technology that puts a metal and its keepout on one layer
+number with different datatypes, and a script with the wrong datatype reads the wrong shapes
+without a message.
+
+`schemaVersion="3.2"` lets a `<Layer>` name its datatype: `Layer="68" Datatype="20"`. Such a layer
+is read from that datatype, whatever the script passes, and two layers can share a layer number.
+The Layers tab has a new **Datatype (optional)** column; an empty cell means "as set for the
+model", as before. The operands of a derived layer are written as `68/20`. The rules are in
+[Datatype](XML_stackup_format.md#datatype-which-gds-datatype-a-layer-is-read-from).
+
 ## Trying it yourself
 
-The four example files in
+The example files in
 [`../../more_examples/XML_stackup_format_examples/`](../../more_examples/XML_stackup_format_examples/)
-correspond exactly to the generations in this document — `01_...` (schemaVersion `"2.0"`) through
-`04_...` (schemaVersion `"3.1"`, full featureset) — and describe the same, physically identical
+correspond exactly to the generations in this document. `01_...` (schemaVersion `"2.0"`) through
+`04_...` (schemaVersion `"3.1"`, full featureset) describe the same, physically identical
 IHP SG13G2 stackup at every step, so the differences you see between them are only ever the
-feature being introduced at that point. That folder's own `README.md` covers the same
-progression from the raw XML side.
+feature being introduced at that point. `05_...` (schemaVersion `"3.2"`) needs a structure where
+volumes overlap, so it describes a die in mold compound on a laminate, with its layout
+`layout/05_die_in_mold.gds`. That folder's own `README.md` covers the same progression from the raw XML
+side.
 
 To open any of them in the Stackup Editor GUI shown throughout this document: from within
 setupEM or setupThermal, use **Tools > Edit Stackup XML...**; or, standalone (no gds2palace

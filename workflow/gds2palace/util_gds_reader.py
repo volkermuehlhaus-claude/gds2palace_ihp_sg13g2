@@ -24,6 +24,8 @@ import gdstk
 import numpy as np
 import os
 from shapely import STRtree, unary_union
+
+from .util_stackup_reader import layer_text, split_layer_id
 from shapely.geometry import Polygon as ShapelyPolygon
 from shapely.validation import explain_validity, make_valid
 
@@ -193,6 +195,18 @@ class gds_polygon:
     # fraction of this polygon's area that is real via metal, < 1 after via array merging
     self.fill_factor = 1.0
     self.CSXpoly = None
+
+  # layernum is a layer id for a stackup layer with a Datatype (util_stackup_reader.layer_id); these two give
+  # what it stands for, e.g. for debugging
+  @property
+  def gds_layer (self):
+    """GDS layer number of this polygon's layer."""
+    return split_layer_id(self.layernum)[0]
+
+  @property
+  def gds_datatype (self):
+    """GDS datatype of this polygon's layer if its stackup layer has a Datatype, else None."""
+    return split_layer_id(self.layernum)[1]
     
   def add_vertex (self, x,y):
     """Add one point (vertex) to the polygon
@@ -218,7 +232,7 @@ class gds_polygon:
         string: string representation of polygon data
     """
     # string representation 
-    mystr = 'Layer = ' + str(self.layernum) + ', Polygon = ' + str(self.pts)
+    mystr = 'Layer = ' + layer_text(self.layernum) + ', Polygon = ' + str(self.pts)
     return mystr
 
 
@@ -260,6 +274,28 @@ class all_polygons_list:
             'all fill factors are 1.0 there. If the vias in this GDSII file are already merged (e.g. by '
             'gds_prepare_for_EM or setupEM Tools > Simplify GDS), fill factor correction is not possible: '
             'the original vias are not in the file, and the merged vias are treated as solid metal.')
+
+  def print_layers (self, metals_list=None):
+    """Print what was read into which layer, for checking a model: per layer the stackup layer name(s), the
+    GDS layer (with the datatype of a layer that has one, e.g. 68/20), the layer id used in the code and the
+    number of polygons. Layers that are not in the stackup (ports, markers) have no name.
+    Args:
+        metals_list (metal_layers_list, optional): stackup layers, for the names
+    """
+    counts = {}
+    for poly in self.polygons:
+      counts[int(poly.layernum)] = counts.get(int(poly.layernum), 0) + 1
+    names = {}
+    if metals_list is not None:
+      for metal in metals_list.metals:
+        names.setdefault(int(metal.layernum), []).append(metal.name)
+        counts.setdefault(int(metal.layernum), 0)
+    rows = [(', '.join(names.get(number, [])) or '-', layer_text(number), str(number), str(counts[number]))
+            for number in sorted(counts, key=lambda n: (split_layer_id(n), n))]
+    header = ('Stackup layer', 'GDS layer', 'Layer id', 'Polygons')
+    widths = [max(len(row[i]) for row in rows + [header]) for i in range(4)]
+    for row in [header] + rows:
+      print('  '.join(text.ljust(width) for text, width in zip(row, widths)).rstrip())
 
   def append (self, poly):
     """Append one instance of gds_polygon
@@ -436,7 +472,7 @@ def _store_layer_polygons (all_polygons, layerpolygons, target_layer):
   # Issue warning when very many polygons on layer
   numpoly = len(layerpolygons)
   if numpoly > 200:
-    print(f'Layer {target_layer} has {numpoly} polygons')
+    print(f'Layer {layer_text(target_layer)} has {numpoly} polygons')
     print(' ==> Consider via array merging by setting merge_polygon_size > 0')
 
   # iterate over layer polygons
@@ -495,12 +531,15 @@ def resolve_derived_layers (LPPpolylist, derived_layers, layerlist, purposelist,
       return layer_polygons_gds[layernum]
 
     # not yet extracted: treat as native GDSII layer and pull it on demand
-    layer_gds = layernum - layernumber_offset
+    # an operand with a Datatype (a layer id, see util_stackup_reader.layer_id) is read from that datatype only
+    number, datatype = split_layer_id(layernum)
+    layer_gds = number - layernumber_offset
+    datatypes = purposelist if datatype is None else [datatype]
     found_polygons = []
     for LPP in LPPpolylist:
       layer = LPP[0]
       purpose = LPP[1]
-      if (layer == layer_gds) and (purpose in purposelist):
+      if (layer == layer_gds) and (purpose in datatypes):
         found_polygons.extend(LPPpolylist[(layer, purpose)])
 
     layer_polygons_gds[layernum] = found_polygons
@@ -900,14 +939,16 @@ def _repair_malformed_polygons (all_polygons, solid_layers=None):
 
 # ----------- read GDSII file, return openEMS polygon list object -----------
 
-def read_gds(filename, layerlist, purposelist, metals_list, preprocess=False, merge_polygon_size=0, mirror=False, offset_x=0, offset_y=0, gds_boundary_layers=[], layernumber_offset=0, cellname="", derived_layers=None):
+def read_gds(filename, layerlist, purposelist=None, metals_list=None, preprocess=False, merge_polygon_size=0, mirror=False, offset_x=0, offset_y=0, gds_boundary_layers=[], layernumber_offset=0, cellname="", derived_layers=None):
   """
   Read GDSII file and return polygon list object.
 
   Args:
       filename (str): Input filename.
       layerlist (list of int): List of layer numbers to be processed.
-      purposelist (list of int): List of GDSII data types to be processed.
+      purposelist (list of int, optional): GDSII datatypes to read, for the layers without a Datatype in the
+          stackup and for port / marker layers. Defaults to [0]. A stackup layer with a Datatype is read from
+          that datatype, whatever this list says.
       metals_list (metal_layers_list): Instance of class `metal_layers_list` defined in `util_stackup_reader`.
       preprocess (bool, optional): Enable GDSII geometry preprocessing. Defaults to False.
       merge_polygon_size (float, optional): Enable via array merging when value is > 0.
@@ -926,6 +967,8 @@ def read_gds(filename, layerlist, purposelist, metals_list, preprocess=False, me
 
   if derived_layers is None:
     derived_layers = getattr(metals_list, 'derived_layers', None)
+  if purposelist is None:
+    purposelist = [0]
 
   if os.path.isfile(filename):
     print('Reading GDSII input file:', filename)
@@ -946,6 +989,9 @@ def read_gds(filename, layerlist, purposelist, metals_list, preprocess=False, me
 
     # metal islands per set of metal layer numbers, for via array merging (each metal is next to two via layers)
     metal_islands_cache = {}
+
+    # {GDS layer number: datatypes read}, for the note about datatypes that were not read
+    datatypes_read = {}
 
     # flatten hierarchy below this cell, paths as polygons
     flat_polygons = cell.get_polygons(include_paths=True)
@@ -981,7 +1027,11 @@ def read_gds(filename, layerlist, purposelist, metals_list, preprocess=False, me
       # For this file, the layernumber_offset applies ALWAYS
 
       # check if layer-to-extract is used in cell 
-      layer_to_extract_gds = layer_to_extract - layernumber_offset
+      # a stackup layer with a Datatype has a layer id that holds number and datatype (see
+      # util_stackup_reader.layer_id): it is read from that datatype only, all others from purposelist
+      layer_number, layer_datatype = split_layer_id(layer_to_extract)
+      layer_to_extract_gds = layer_number - layernumber_offset
+      layer_datatypes = purposelist if layer_datatype is None else [layer_datatype]
       if (layer_to_extract_gds in used_layers):  # use base layer number here to match GDSII
               
         # iterate over layer-purpose pairs
@@ -990,15 +1040,16 @@ def read_gds(filename, layerlist, purposelist, metals_list, preprocess=False, me
           purpose = LPP[1]
           
           # now get polygons for this one layer-purpose-pair
-          if (layer==layer_to_extract_gds) and (purpose in purposelist):
+          if (layer==layer_to_extract_gds) and (purpose in layer_datatypes):
             layerpolygons = LPPpolylist[(layer, purpose)]
+            datatypes_read.setdefault(layer, set()).add(purpose)
 
             # optional via array merging, only for via layers
-            metal = metals_list.getbylayernumber(layer_to_extract) # this is the layer number with offset, to match XML stackup
+            metal = metals_list.getbylayernumber(layer_to_extract) if metals_list is not None else None # this is the layer number with offset, to match XML stackup
             if metal != None:
               if (merge_polygon_size>0) and metal.is_via:
                 # keep the unmerged vias, for the optional fill factor correction in simulation setup
-                all_polygons.via_originals.setdefault(layer + layernumber_offset, []).extend(layerpolygons)
+                all_polygons.via_originals.setdefault(layer_to_extract, []).extend(layerpolygons)
                 originals = layerpolygons
                 layerpolygons = merge_via_array (layerpolygons, merge_polygon_size)
 
@@ -1006,8 +1057,11 @@ def read_gds(filename, layerlist, purposelist, metals_list, preprocess=False, me
                 def neighbor_islands (neighbors):
                   layernums = tuple(sorted(set(int(n.layernum) for n in neighbors if n.is_metal)))
                   if layernums not in metal_islands_cache:
-                    polygons = [p for num in layernums for purp in purposelist
-                                for p in LPPpolylist.get((num - layernumber_offset, purp), [])]
+                    polygons = []
+                    for num in layernums:
+                      number, datatype = split_layer_id(num)
+                      for purp in (purposelist if datatype is None else [datatype]):
+                        polygons.extend(LPPpolylist.get((number - layernumber_offset, purp), []))
                     metal_islands_cache[layernums] = metal_islands(polygons)
                   return metal_islands_cache[layernums]
 
@@ -1021,9 +1075,21 @@ def read_gds(filename, layerlist, purposelist, metals_list, preprocess=False, me
                         'below kept unmerged')
 
             # cache raw polygons for this layer, so derived layers can use it as an operand
-            layer_polygons_gds[layer + layernumber_offset] = layerpolygons
+            layer_polygons_gds[layer_to_extract] = layerpolygons
 
-            _store_layer_polygons(all_polygons, layerpolygons, layer + layernumber_offset)
+            _store_layer_polygons(all_polygons, layerpolygons, layer_to_extract)
+
+    # shapes of a stackup layer's number on datatypes that were not read: say so, a wrong datatype is easy to miss
+    if metals_list is not None:
+      for number in sorted({split_layer_id(n)[0] - layernumber_offset for n in metals_list.getlayernumbers()}):
+        read = datatypes_read.get(number, set())
+        skipped = sorted(dt for (layer, dt) in LPPpolylist if layer == number and dt not in read)
+        if skipped:
+          names = ', '.join(sorted({m.name for m in metals_list.metals
+                                    if split_layer_id(m.layernum)[0] - layernumber_offset == number}))
+          read_text = ', '.join(f'{number}/{dt}' for dt in sorted(read)) or 'nothing'
+          skipped_text = ', '.join(f'{number}/{dt} ({len(LPPpolylist[(number, dt)])} polygons)' for dt in skipped)
+          print(f'Note: GDS layer {number} ({names}): read {read_text}; in the file but not read: {skipped_text}')
 
     # ----------- derived layers: boolean operations on other layers -----------
     if derived_layers is not None and len(derived_layers.derived_layers) > 0:
