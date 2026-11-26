@@ -9,13 +9,13 @@ Four model details decide the accuracy:
 - conformal passivation over TopMetal2 and 
 - a simulation boundary far enough away from the coil in all directions, including above and below the chip.
 
-With all four, the best model is within 0.3 % in L, 0.7 % in peak Q and 1.6 % in SRF of the measurement. Run times are 2 to 8 minutes on 16 cores.
+With all four, the best model is within 0.3 % in L, 0.7 % in peak Q and 1.6 % in SRF of the measurement. Run times are 1 to 8 minutes on 16 cores.
 
 
 > ## What is new in v5
 >
 > - **The simulation boundary is further away, above and below the chip too.** All models keep their 400 µm margin to the side, but now have 800 µm of air around (`settings['air_around']`) instead of 50 µm. The [simulation boundary study](../../simulation_boundary/README.md) showed that the old margin test of this study (v3, v4) looked converged too early: it varied only the side margin, while the thin air kept the boundary 50 µm below the substrate in every run. With the thin air, Q depended on the Palace version by 4 %.
-> - **Palace 0.19 and gds2palace 0.10.7.** Palace 0.19 fixed its second-order absorbing boundary. With the boundary now far away, Palace 0.18.1 and 0.19 agree within 0.5 % for this coil.
+> - **Palace 0.19 and gds2palace 0.10.7.** Palace 0.19 fixed its second-order absorbing boundary. With the boundary now far away, Palace 0.18.1 and 0.19 agree within 0.5 % for this coil. The results shown here are from Palace 0.20, solved on the same meshes: L, peak Q and SRF are the same as with 0.19, the run times and memory are those of Palace 0.20.
 > - **What changed in the results:** in all models, L is about 1.1 % higher, peak Q 2.5 to 3 % higher and the SRF 0.6 % lower than in v4. The best model moved from -3.3 % to -0.7 % in peak Q.
 > - **What stayed:** the comparisons between the model variants, and all conclusions of v4.
 >
@@ -70,7 +70,7 @@ The stackup used so far covers TopMetal2 with another thick **flat** layer of Si
 - **Sweep:** 0–14 GHz in 0.1 GHz steps, using Palace's adaptive frequency sweep. 14 GHz is about 1.2x the measured self-resonant frequency (SRF).
 - **Port de-embedding:** not used here, calculated 1.6 pH port parasitic per side is negligible here
 - **Measurement:** `meas_L5_6n2_THRU_deemb.S2P`, already de-embedded, 100 MHz–50 GHz. The measured differential values are L = 5.01 nH at 1 GHz, peak Q = 15.96 and SRF = **11.07 GHz**.
-- **Execution:** Simulated on `hpz2` with Palace 0.19.0, one model at a time, using 16 cores, 109 GB RAM available.
+- **Execution:** Simulated on `hpz2` with Palace 0.20.0 (on the meshes of the Palace 0.19 runs), one model at a time, using 16 cores, 109 GB RAM available.
 
 ## 0. Layout
 
@@ -113,9 +113,9 @@ Conclusion: The ~0.4 Ohm offset from simple via array merging (no correction for
 
 | Via array handling | Conductor model | Mesh | DOF | Mesh elements | Solve time | Peak RAM |
 |---|---|---:|---:|---:|---:|---:|
-| no merge | Surface | 2 µm | 1,162,256 | 166,986 | 2m 19s | 16.77 GB |
-| merge | Surface | 2 µm | 1,073,498 | 154,055 | 1m 55s | 15.57 GB |
-| merge + correction | Surface | 2 µm | 1,073,498 | 154,055 | 1m 55s | 15.60 GB |
+| no merge | Surface | 2 µm | 1,162,256 | 166,986 | 1m 11s | 10.53 GB |
+| merge | Surface | 2 µm | 1,073,498 | 154,055 | 1m 1s | 9.67 GB |
+| merge + correction | Surface | 2 µm | 1,073,498 | 154,055 | 0m 59s | 9.61 GB |
 
 The correction factor for effective cross section is calculated by gds2palace as 28% and that value can be seen in the physical volume name for that merged via group also.
 
@@ -144,8 +144,8 @@ Meshing the conductors as volumes means more mesh cells, more memory and about 2
 
 | Via array handling | Conductor model | Mesh | DOF | Mesh elements | Solve time | Peak RAM |
 |---|---|---:|---:|---:|---:|---:|
-| merge + correction | Surface | 2 µm | 1,073,498 | 154,055 | 1m 55s | 15.60 GB |
-| merge + correction | Volume | 2 µm | 1,276,958 | 200,393 | 2m 23s | 18.59 GB |
+| merge + correction | Surface | 2 µm | 1,073,498 | 154,055 | 0m 59s | 9.61 GB |
+| merge + correction | Volume | 2 µm | 1,276,958 | 200,393 | 1m 14s | 11.63 GB |
 
 What is not shown in this table: Palace also calculates internal "quality" metrics from the FEM solution. These error indicator values are approximately twice as much for the volume mesh model. This indicates that we might need a smaller refined_cellsize value for the volume mesh model. We will come back to that later, for the "ultimate" final model with best accuracy.
 
@@ -211,8 +211,8 @@ This model is numerically more expensive because we now create additional mesh c
 
  Stackup | Via array handling | Conductor model | Mesh | DOF | Mesh elements | Solve time | Peak RAM |
 |---|---|---|---:|---:|---:|---:|---:|
-| Planar | merge + correction | Volume | 2 µm | 1,276,958 | 200,393 | 2m 23s | 18.59 GB |
-| Conformal | merge + correction | Volume | 2 µm | 1,568,124 | 246,523 | 4m 5s | 23.76 GB |
+| Planar | merge + correction | Volume | 2 µm | 1,276,958 | 200,393 | 1m 14s | 11.63 GB |
+| Conformal | merge + correction | Volume | 2 µm | 1,568,124 | 246,523 | 2m 16s | 14.93 GB |
 
 From here, we can now go two directions:
 - investigate a "cheaper" model that places the SiO2 + Passivation correct for the valleys, but skips the dielectrics on top and sides of TopMetal2
@@ -222,12 +222,12 @@ From here, we can now go two directions:
 
 The "cheaper" model leaves out the conformal cover over TopMetal2, and just places the correct thickness of SiO2 and Passivation in the valleys between TopMetal2 shapes. This avoids the over-estimate of sidewall capacitance from the original stackup, and avoids the extra effort of dielectrics conformal around TopMetal2. At least that's the idea here ...
 
-In reality, it turns out that the dielectrics hitting TopMetal2 half way on the sides create a rather similar mesh: about the same DOF and memory, as shown in the comparison table below. It does solve faster, because Palace's linear solver needs fewer iterations for this model (28 instead of 39 per solve).
+In reality, it turns out that the dielectrics hitting TopMetal2 half way on the sides create a rather similar mesh: about the same DOF and memory, as shown in the comparison table below. It does solve faster, because Palace's linear solver needs fewer iterations for this model (24 instead of 33 per solve).
 
  Stackup | Via array handling | Conductor model | Mesh | DOF | Mesh elements | Solve time | Peak RAM |
 |---|---|---|---:|---:|---:|---:|---:|
-| Conformal | merge + correction | Volume | 2 µm | 1,568,124 | 246,523 | 4m 5s | 23.76 GB |
-| PassiCut | merge + correction | Volume | 2 µm | 1,590,416 | 249,701 | 3m 19s | 22.62 GB |
+| Conformal | merge + correction | Volume | 2 µm | 1,568,124 | 246,523 | 2m 16s | 14.93 GB |
+| PassiCut | merge + correction | Volume | 2 µm | 1,590,416 | 249,701 | 1m 44s | 13.99 GB |
 
 Results are very similar to the full 3D conformal simulation.
 
@@ -252,7 +252,7 @@ Detail view cut at y=40 µm plane, E field  with mesh overlay, stackup "SG13G2_2
 
 For the sake of completeness, we can also compare the mesh and fields resulting for that "SG13G2_200um" stackup with hollow conductors using the default "surface impedance" model.
 ![(Passivation)](results/plots/sheet_regular.png)
-This surface impedance model took 1m 55s and 1,073,498 DOF, the more accurate 3D conformal passivation model took 4m 5s and 1,568,124 DOF.
+This surface impedance model took 0m 59s and 1,073,498 DOF, the more accurate 3D conformal passivation model took 2m 16s and 1,568,124 DOF.
 
 ## 6. Cheaper model, revisited
 
@@ -260,12 +260,12 @@ We have seen that all models create really dense mesh in the gap between conduct
 
 ![(Passivation)](results/plots/passi3D_5um.png)
 
-Compared to the 2 micron mesh, we lose accuracy in peak Q (-6.0 % vs. measurement instead of -2.2 %) and also a little bit in SRF. It uses only 45 % of the memory and is 2.5x faster. At under 2 minutes for the sweep, this could be a reasonable "daily driver" for the development phase, with some high accuracy check done later.
+Compared to the 2 micron mesh, we lose accuracy in peak Q (-6.0 % vs. measurement instead of -2.2 %) and also a little bit in SRF. It uses only 47 % of the memory and is 2x faster. At about 1 minute for the sweep, this could be a reasonable "daily driver" for the development phase, with some high accuracy check done later.
 
  Stackup | Via array handling | Conductor model | Mesh | DOF | Mesh elements | Solve time | Peak RAM |
 |---|---|---|---:|---:|---:|---:|---:|
-| Conformal | merge + correction | Volume | 2 µm | 1,568,124 | 246,523 | 4m 5s | 23.76 GB |
-| Conformal | merge + correction | Volume | 5 µm | 662,096 | 103,617 | 1m 38s | 10.65 GB |
+| Conformal | merge + correction | Volume | 2 µm | 1,568,124 | 246,523 | 2m 16s | 14.93 GB |
+| Conformal | merge + correction | Volume | 5 µm | 662,096 | 103,617 | 1m 9s | 6.98 GB |
 
 Detail view cut at y=40 µm plane, E field  with mesh overlay, stackup "3D conformal". We can clearly see the top cover and side walls in the mesh lines:
 ![(Passivation)](results/plots/volume_3D_conformal_5um.png)
@@ -295,8 +295,8 @@ This is still a feasible simulation on a machine with 64 GB RAM or more, and too
 
  Stackup | Via array handling | Conductor model | Mesh | DOF | Mesh elements | Solve time | Peak RAM |
 |---|---|---|---:|---:|---:|---:|---:|
-| Conformal | merge + correction | Volume | 2 µm | 1,568,124 | 246,523 | 4m 5s | 23.76 GB |
-| Conformal | merge + correction | Volume | 1 µm | 3,055,012 | 480,776 | 8m 6s | 42.57 GB |
+| Conformal | merge + correction | Volume | 2 µm | 1,568,124 | 246,523 | 2m 16s | 14.93 GB |
+| Conformal | merge + correction | Volume | 1 µm | 3,055,012 | 480,776 | 7m 39s | 28.23 GB |
 
 If you like the field and mesh plots in this study: they were all created using the built-in field viewer in setupEM, based on simulation model data with just one `fdump` frequency. That's enough for visualization, simulating fast.
 
@@ -342,13 +342,13 @@ All models with 400 µm margin and 800 µm air around. For this coil (257 × 352
 
 | Model | L at 1 GHz | Peak Q | SRF | Solve time |
 |---|---:|---:|---:|---:|
-| Surface, 2 µm, via merge, no correction | -0.6 % | +31.3 % | -9.3 % | 1m 55s |
-| Surface, 2 µm, no via merge | -0.6 % | +23.2 % | -9.3 % | 2m 19s |
-| Surface, 2 µm, via merge + correction | -0.6 % | +23.0 % | -9.3 % | 1m 55s |
-| Volume, 2 µm, planar | +0.4 % | -6.3 % | -9.5 % | 2m 23s |
-| Volume, 2 µm, PassiCut | +0.2 % | -1.0 % | +0.1 % | 3m 19s |
-| Volume, 5 µm, conformal | +0.1 % | -6.0 % | -3.2 % | 1m 38s |
-| Volume, 2 µm, conformal | +0.3 % | -2.2 % | -2.1 % | 4m 5s |
-| **Volume, 1 µm, conformal** | **+0.3 %** | **-0.7 %** | **-1.6 %** | 8m 6s |
+| Surface, 2 µm, via merge, no correction | -0.6 % | +31.3 % | -9.3 % | 1m 1s |
+| Surface, 2 µm, no via merge | -0.6 % | +23.2 % | -9.3 % | 1m 11s |
+| Surface, 2 µm, via merge + correction | -0.6 % | +23.0 % | -9.3 % | 0m 59s |
+| Volume, 2 µm, planar | +0.4 % | -6.3 % | -9.5 % | 1m 14s |
+| Volume, 2 µm, PassiCut | +0.2 % | -1.0 % | +0.1 % | 1m 44s |
+| Volume, 5 µm, conformal | +0.1 % | -6.0 % | -3.2 % | 1m 9s |
+| Volume, 2 µm, conformal | +0.3 % | -2.2 % | -2.1 % | 2m 16s |
+| **Volume, 1 µm, conformal** | **+0.3 %** | **-0.7 %** | **-1.6 %** | 7m 39s |
 
 The most accurate model (1 µm, conformal passivation, `'solve_inside'`, via merging with correction, 400 µm margin and 800 µm air around) is within 0.3 % in L, 0.7 % in peak Q and 1.6 % in SRF of the measurement. The cheaper PassiCut model comes as close (peak Q -1.0 %, SRF +0.1 %) at 40 % of the run time.
