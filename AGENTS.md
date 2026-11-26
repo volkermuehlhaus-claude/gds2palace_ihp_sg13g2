@@ -68,6 +68,7 @@ clone, it is [`workflow/gds2palace/`](workflow/gds2palace/).
 | Topic | Document |
 |---|---|
 | Overview, installation, system requirements | [`README.md`](README.md) |
+| The related tools (KLayout plug-in, setupEM, gds2openEMS, layout clean-up, result plots, circuit models) and which one to use | [`doc/toolchain_overview.md`](doc/toolchain_overview.md) |
 | User's guide (full workflow, settings, ports, examples, Elmer) | [`doc/userguide_md_format/gds2palace_workflow_userguide.md`](doc/userguide_md_format/gds2palace_workflow_userguide.md) (also as PDF in [`doc/`](doc/), generated from the Markdown, see [`doc/pdf_build/`](doc/pdf_build/README.md)) |
 | FAQ, including an "Automation and AI-agent-driven workflows" chapter | [`doc/FAQ.md`](doc/FAQ.md) |
 | Code structure, how the mesh and config are built | [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) |

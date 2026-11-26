@@ -2,7 +2,7 @@
 
 Volker Mühlhaus,volker@muehlhaus.com
 ---
-Document version: 2026-11-25
+Document version: 2026-11-26
 
 ## Contents
 [What's New](#whats-new)  
@@ -111,6 +111,10 @@ An installation script for Linux is available, which
 - installs the scripts to run Palace models from gds2palace (run_palace, combine_snp)
 
 See <https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/tree/main/scripts/install_linux>
+
+For Windows there is an installation script too. It installs gds2palace and setupEM on Windows and the AWS Palace solver in WSL (Windows Subsystem for Linux), and sets up setupEM to send its simulations there. See <https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/tree/main/scripts/install_windows>
+
+gds2palace is one of several tools for EM simulation of IHP SG13G2 layouts: a KLayout plug-in, the user interface setupEM, a workflow for openEMS, layout clean-up, result plots and circuit models. For an overview, see <https://github.com/VolkerMuehlhaus/gds2palace_ihp_sg13g2/blob/main/doc/toolchain_overview.md>
 
 ### Manual installation
 

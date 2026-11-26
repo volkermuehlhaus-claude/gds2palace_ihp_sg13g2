@@ -463,7 +463,10 @@ AMR convergence chart for a run of your own with one command.
 gds2palace generates model files (`config.json`, the mesh) on any platform,
 including Windows — that part has no Palace dependency. The Palace *solver*
 itself needs Linux: WSL, a native Linux machine, or a remote Linux host
-reachable over SSH. See the [top-level README](../README.md)'s system
+reachable over SSH. The install script for Windows
+([`scripts/install_windows`](../scripts/install_windows/README.md)) sets up
+both sides: gds2palace and setupEM on Windows, Palace in WSL. To install
+Palace by hand, see the [top-level README](../README.md)'s system
 requirements and [`building-palace-apptainer.md`](building-palace-apptainer.md)/
 [`building-palace-spack.md`](building-palace-spack.md) for installing it.
 

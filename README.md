@@ -12,6 +12,19 @@ In addition to AWS Palace, gds2palace can also generate models for [Elmer FEM](h
 The gds2palace workflow in this repository is pre-configured for GDSII layout files in the [IHP SG13G2 Open PDK.](https://github.com/IHP-GmbH/IHP-Open-PDK)
 Special thanks to IHP and the public funded German project FMD-QNC (16ME0831) https://www.elektronikforschung.de/projekte/fmd-qnc for financial support, which has contributed to this work.
 
+# Quick install
+
+One script installs everything you need: a Python environment with gds2palace and its user interface [setupEM](https://github.com/VolkerMuehlhaus/setupEM), the AWS Palace solver as a ready-made container image, and the scripts that run a Palace model. No clone of this repository is needed.
+
+- **Linux:** download and run `install_gds2palace.sh`, see [Installing on Linux](./scripts/install_linux/README.md).
+- **Windows:** download and run `install_gds2palace.bat`, see [Installing on Windows + WSL](./scripts/install_windows/README.md). gds2palace and setupEM run on Windows, the Palace solver runs in WSL.
+
+Then start `setupEM`, or run one of the model scripts in [workflow/](./workflow/).
+
+If you only want the Python package, e.g. because Palace runs on another machine: `pip install gds2palace`, or `pip install setupEM` for the user interface with gds2palace.
+
+gds2palace is one of several tools for EM simulation of IHP SG13G2 layouts (KLayout plug-in, user interface, openEMS workflow, layout clean-up, result plots, circuit models). For an overview, see [Which tool for what](./doc/toolchain_overview.md).
+
 # Documentation
 An extensive User's Guide for the gds2palace workflow is available in PDF format here:  
 [gds2palace FEM workflow for IHP](./doc/gds2palace_workflow_userguide.pdf) 
@@ -23,7 +36,7 @@ An overview of the EM solver ecosystem (tools and utilities) for IHP SG13 can be
 https://github.com/IHP-GmbH/IHP-Open-PDK/tree/main/ihp-sg13g2/libs.doc/doc
 
 # System requirements
-This workflow is designed for Linux systems. It creates model files for the AWS Palace FEM solver, which must be installed separately, as described in chapter "Installing Palace".
+gds2palace itself runs on Linux, Windows and macOS. It creates model files for the AWS Palace FEM solver, which runs on Linux (on Windows: in WSL) and is installed by the install scripts above, or separately as described in chapter "Installing Palace".
 
 At least 32 GB of RAM is recommended for this workflow, complex model might require 64 GB or more.  
 In addition to Palace that is required for simulation of the output files, these Python modules are required to use the gds2palace workflow:
@@ -55,11 +68,13 @@ A detailed step-by-step guide is available here:
 
 A pre-built container image for Palace 0.20.0 is also available, if you'd rather not build
 anything yourself. It runs on all Intel processors since 2013 and all AMD processors since
-2017. To download it into your current directory:
+2017. To download it into your home directory:
 
 ```
-$ apptainer pull palace_0200.sif oras://ghcr.io/volkermuehlhaus/palace_0200:latest
+$ apptainer pull ~/palace_0200.sif oras://ghcr.io/volkermuehlhaus/palace_0200:latest
 ```
+
+The example script [`scripts/run_palace`](./scripts/run_palace) starts `~/palace.sif`: set the file name there to the image you downloaded. The install scripts above do both steps for you.
 
 ### Installing the Palace solver using **spack package manager**
 Palace can also be created from source with a few simple commands. All tools required by the build process will be downloaded and installed automatically by spack, so you can sit and watch while your system builds the software.

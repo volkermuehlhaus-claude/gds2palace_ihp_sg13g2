@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 866" width="980" height="866" role="img"
+     aria-labelledby="title desc" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title id="title">From a KLayout layout to the circuit testbench: the tools and what they do</title>
+  <desc id="desc">The KLayout plug-in klayout_em_export turns a layout into a GDSII layout with ports.
+    gds_prepare_for_EM cleans tape-out layouts. Then either setupEM or a model script with gds2palace and the
+    AWS Palace solver (FEM), or a model script with gds2openEMS and openEMS (FDTD), give S-parameters.
+    plot_snp shows them; snp2le and lumpedmodel turn them into an equivalent circuit for a testbench in
+    ngspice, Xyce or VACASK.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0.6 L 10 5 L 0 9.4 z" fill="#4a5560"/>
+    </marker>
+    <marker id="arrow-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0.6 L 10 5 L 0 9.4 z" fill="#8a94a0"/>
+    </marker>
+    <style>
+      .bg     { fill: #ffffff; stroke: #dfe3e8; }
+      .lane   { fill: #f8fafc; stroke: #d5dbe2; }
+      .data   { fill: #f1f3f5; stroke: #98a2ad; stroke-width: 1.5; }
+      .tool   { fill: #e6f0fb; stroke: #2b6cb0; stroke-width: 1.5; }
+      .ext    { fill: #fdf2df; stroke: #c98a2b; stroke-width: 1.5; }
+      .flow   { fill: none; stroke: #4a5560; stroke-width: 1.8; }
+      .soft   { fill: none; stroke: #8a94a0; stroke-width: 1.5; stroke-dasharray: 5 4; }
+      .t      { font-size: 15px; font-weight: 600; fill: #1f2933; }
+      .t-tool { font-size: 15px; font-weight: 700; fill: #1a4f8a; }
+      .t-ext  { font-size: 15px; font-weight: 700; fill: #85560f; }
+      .d      { font-size: 12.5px; fill: #47525d; }
+      .lane-h { font-size: 13px; font-weight: 700; fill: #5b6570; letter-spacing: 0.4px; }
+      .note   { font-size: 12.5px; fill: #5b6570; }
+      .legend { font-size: 12.5px; fill: #47525d; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0.5" y="0.5" width="979" height="865" rx="12"/>
+
+  <!-- ===== layout in KLayout ===== -->
+  <rect class="data" x="340" y="24" width="300" height="46" rx="8"/>
+  <text class="t" text-anchor="middle" x="490" y="52">Layout in KLayout</text>
+  <path class="flow" d="M 490 70 V 98" marker-end="url(#arrow)"/>
+
+  <rect class="tool" x="255" y="100" width="470" height="62" rx="8"/>
+  <text class="t-tool" text-anchor="middle" x="490" y="126">klayout_em_export</text>
+  <text class="d" text-anchor="middle" x="490" y="147">KLayout plug-in: ports, region to simulate, devices as ports, clean-up</text>
+  <path class="flow" d="M 490 162 V 190" marker-end="url(#arrow)"/>
+
+  <!-- by hand, without the plug-in -->
+  <path class="soft" d="M 340 47 H 222 V 215 H 338" marker-end="url(#arrow-soft)"/>
+  <text class="note" x="210" y="126" text-anchor="end">or: port shapes</text>
+  <text class="note" x="210" y="143" text-anchor="end">drawn by hand</text>
+
+  <!-- ===== GDSII with ports ===== -->
+  <rect class="data" x="340" y="192" width="300" height="46" rx="8"/>
+  <text class="t" text-anchor="middle" x="490" y="220">GDSII layout with ports</text>
+
+  <rect class="tool" x="700" y="180" width="250" height="70" rx="8"/>
+  <text class="t-tool" text-anchor="middle" x="825" y="204">gds_prepare_for_EM</text>
+  <text class="d" text-anchor="middle" x="825" y="223">tape-out layouts: removes dummy fill,</text>
+  <text class="d" text-anchor="middle" x="825" y="239">merges via arrays</text>
+  <path class="soft" d="M 642 215 H 698" marker-start="url(#arrow-soft)" marker-end="url(#arrow-soft)"/>
+
+  <path class="flow" d="M 490 238 V 260 M 262 260 H 717"/>
+  <path class="flow" d="M 262 260 V 282" marker-end="url(#arrow)"/>
+  <path class="flow" d="M 717 260 V 282" marker-end="url(#arrow)"/>
+
+  <!-- ===== FEM lane ===== -->
+  <rect class="lane" x="40" y="284" width="445" height="296" rx="10"/>
+  <text class="lane-h" x="56" y="307">FEM · FREQUENCY DOMAIN</text>
+
+  <rect class="tool" x="56" y="320" width="190" height="58" rx="8"/>
+  <text class="t-tool" text-anchor="middle" x="151" y="344">setupEM</text>
+  <text class="d" text-anchor="middle" x="151" y="364">user interface, no Python</text>
+
+  <rect class="data" x="279" y="320" width="190" height="58" rx="8"/>
+  <text class="t" text-anchor="middle" x="374" y="344">model script</text>
+  <text class="d" text-anchor="middle" x="374" y="364">Python, for full control</text>
+
+  <text class="note" x="262.5" y="353" text-anchor="middle">or</text>
+
+  <path class="flow" d="M 151 378 V 398" marker-end="url(#arrow)"/>
+  <path class="flow" d="M 374 378 V 398" marker-end="url(#arrow)"/>
+
+  <rect class="tool" x="56" y="400" width="413" height="58" rx="8"/>
+  <text class="t-tool" text-anchor="middle" x="262.5" y="424">gds2palace</text>
+  <text class="d" text-anchor="middle" x="262.5" y="444">3D model, mesh and solver input from layout and stackup</text>
+  <path class="flow" d="M 262.5 458 V 478" marker-end="url(#arrow)"/>
+
+  <rect class="ext" x="56" y="480" width="413" height="58" rx="8"/>
+  <text class="t-ext" text-anchor="middle" x="262.5" y="504">AWS Palace</text>
+  <text class="d" text-anchor="middle" x="262.5" y="524">FEM solver, on Linux or in WSL</text>
+
+  <text class="note" x="262.5" y="563" text-anchor="middle">Thermal: setupThermal and Elmer give the device temperatures</text>
+
+  <!-- ===== FDTD lane ===== -->
+  <rect class="lane" x="495" y="284" width="445" height="296" rx="10"/>
+  <text class="lane-h" x="511" y="307">FDTD · TIME DOMAIN</text>
+
+  <rect class="data" x="511" y="320" width="413" height="58" rx="8"/>
+  <text class="t" text-anchor="middle" x="717.5" y="344">model script</text>
+  <text class="d" text-anchor="middle" x="717.5" y="364">Python</text>
+  <path class="flow" d="M 717.5 378 V 398" marker-end="url(#arrow)"/>
+
+  <rect class="tool" x="511" y="400" width="413" height="58" rx="8"/>
+  <text class="t-tool" text-anchor="middle" x="717.5" y="424">gds2openEMS</text>
+  <text class="d" text-anchor="middle" x="717.5" y="444">3D model and mesh from layout and stackup, solver run</text>
+  <path class="flow" d="M 717.5 458 V 478" marker-end="url(#arrow)"/>
+
+  <rect class="ext" x="511" y="480" width="413" height="58" rx="8"/>
+  <text class="t-ext" text-anchor="middle" x="717.5" y="504">openEMS</text>
+  <text class="d" text-anchor="middle" x="717.5" y="524">FDTD solver, on Windows, Linux and macOS</text>
+
+  <text class="note" x="717.5" y="563" text-anchor="middle">Each solver has its own stackup files</text>
+
+  <!-- ===== S-parameters ===== -->
+  <path class="flow" d="M 262 580 V 602 H 717 V 580"/>
+  <path class="flow" d="M 490 602 V 622" marker-end="url(#arrow)"/>
+
+  <rect class="data" x="320" y="624" width="340" height="46" rx="8"/>
+  <text class="t" text-anchor="middle" x="490" y="652">S-parameters (Touchstone .sNp)</text>
+
+  <rect class="tool" x="700" y="612" width="250" height="70" rx="8"/>
+  <text class="t-tool" text-anchor="middle" x="825" y="636">plot_snp</text>
+  <text class="d" text-anchor="middle" x="825" y="655">plots: dB, phase, Smith chart;</text>
+  <text class="d" text-anchor="middle" x="825" y="671">or setupEM's result viewer</text>
+  <path class="soft" d="M 662 647 H 698" marker-end="url(#arrow-soft)"/>
+
+  <!-- ===== equivalent circuit ===== -->
+  <path class="flow" d="M 490 670 V 688 M 345 688 H 635"/>
+  <path class="flow" d="M 345 688 V 706" marker-end="url(#arrow)"/>
+  <path class="flow" d="M 635 688 V 706" marker-end="url(#arrow)"/>
+
+  <rect class="ext" x="205" y="708" width="280" height="62" rx="8"/>
+  <text class="t-ext" text-anchor="middle" x="345" y="733">snp2le</text>
+  <text class="d" text-anchor="middle" x="345" y="753">circuit model: Create Circuit, Model Fit</text>
+
+  <rect class="tool" x="495" y="708" width="280" height="62" rx="8"/>
+  <text class="t-tool" text-anchor="middle" x="635" y="733">lumpedmodel</text>
+  <text class="d" text-anchor="middle" x="635" y="753">circuit model: inductor, MIM capacitor, line</text>
+
+  <path class="flow" d="M 345 770 V 786 H 635 V 770"/>
+  <path class="flow" d="M 490 786 V 802" marker-end="url(#arrow)"/>
+
+  <rect class="data" x="300" y="804" width="380" height="46" rx="8"/>
+  <text class="t" text-anchor="middle" x="490" y="832">Testbench in ngspice, Xyce or VACASK</text>
+
+  <!-- ===== legend ===== -->
+  <rect class="tool" x="40" y="792" width="22" height="14" rx="3"/>
+  <text class="legend" x="72" y="804">tool of this family</text>
+  <rect class="ext" x="40" y="814" width="22" height="14" rx="3"/>
+  <text class="legend" x="72" y="826">other open-source program</text>
+  <rect class="data" x="40" y="836" width="22" height="14" rx="3"/>
+  <text class="legend" x="72" y="848">your file or data</text>
+</svg>
