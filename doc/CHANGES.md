@@ -28,6 +28,7 @@ Each dated section below lists the new features first, then changed behaviour, t
 ### Changed behaviour
 
 - The Palace log is shorter: `config.json` now has `"Verbose": 2` instead of 3. With Palace 0.20, level 3 printed a long report of the direct solver for every solve. The log still shows the progress, the iterations of every solve and all warnings. For the old output, set `"Verbose": 3` in `config.json`.
+- A mesh with zero-volume elements now stops the model build for Palace models too, with the location of these elements, and no mesh file is written. Before, this was only a warning for Palace models, and Palace then failed with a message that did not point to the mesh ("STRUMPACK factorization failed" or "requires a finite, nonzero real operator diagonal"). The message now also names layers with a larger mesh size from `refined_cellsize_override`. Typical cause: a mesh size of several µm at shapes with much smaller steps or gaps. Use a finer mesh there.
 
 ## 25 November-2026
 

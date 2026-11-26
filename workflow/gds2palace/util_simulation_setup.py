@@ -18,7 +18,7 @@
 
 # -*- coding: utf-8 -*-
 
-__version__ = "1.24.2"
+__version__ = "1.25.0"
 
 # solvers where settings['fill_factor_correction'] is applied (checked by setupEM)
 FILL_FACTOR_CORRECTION_SOLVERS = ("palace", "elmer", "elmer_thermal")
@@ -3720,18 +3720,28 @@ def create_model (excite_ports, settings):
 
         # A coarse mesh around small conductors (e.g. 0.7 um metal fingers with a cell size of several um) can leave
         # flat tetrahedra of zero volume in the dielectric between them, which gmsh's optimization keeps. Elmer stops
-        # with "Degenerate 3D element" and a NaN solution; say where, before the mesh is written.
+        # with "Degenerate 3D element" and a NaN solution, Palace with a failed factorization of the direct solver
+        # (0.20) or "requires a finite, nonzero real operator diagonal" (0.19): neither message points to the mesh.
+        # So stop here and say where, before the mesh is written.
         degenerate = degenerate_elements()
         if degenerate:
-            print(f'{"ERROR" if elmer else "WARNING"}: {len(degenerate)} mesh element(s) with zero volume, at '
-                  f'(x, y, z) in drawing units:')
+            print(f'ERROR: {len(degenerate)} mesh element(s) with zero volume, at (x, y, z) in drawing units:')
             for name, center in degenerate[:10]:
                 print(f'   {name or "unnamed volume"}: ({center[0]:.3f}, {center[1]:.3f}, {center[2]:.3f})')
             refined_label = "Mesh size at heat sources" if elmer_thermal else "Mesh refinement at metal edges"
             print(f'   Use a finer mesh there: a smaller refined_cellsize ("{refined_label}") or '
                   'meshsize_max ("Mesh cell maximum size").')
-            if elmer:
-                exit(1)
+            if refined_cellsize_override_dict:
+                coarser = ', '.join(f'{name} {value:g}' for name, value in refined_cellsize_override_dict.items()
+                                    if value > refined_cellsize)
+                if coarser:
+                    print(f'   This model has a larger mesh size for some layers (refined_cellsize_override: {coarser}). '
+                          'If the location is at one of them, lower that value first.')
+            # a mesh file from an earlier build of this model must not be solved in place of this one
+            if os.path.exists(msh_name):
+                os.remove(msh_name)
+            print('   The solver cannot use a mesh with such elements: no mesh file is written.')
+            exit(1)
 
         # Save mesh
         gmsh.option.setNumber("Mesh.Binary", 0)
