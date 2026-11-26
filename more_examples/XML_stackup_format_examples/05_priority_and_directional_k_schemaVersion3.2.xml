@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <Stackup schemaVersion="3.2">
-  <!-- Direction-dependent thermal conductivity (.xy/.z) and Priority require gds2palace util_stackup_reader.py version 1.11.0 or newer -->
+  <!-- Stackup format 3.2 features used (thermal conductivity per direction, Priority, allowed values of Variables) require gds2palace util_stackup_reader.py version 1.11.0 or newer -->
   <!-- ============================================================ -->
   <!-- File description: XML stackup format example 5: schemaVersion 3.2.
   A silicon die in mold compound on a package laminate, for an Elmer thermal model.

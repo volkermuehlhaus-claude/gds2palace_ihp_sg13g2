@@ -42,6 +42,16 @@ on it) — but `read_substrate()` does print a warning if a file declares a `sch
 newer than `util_stackup_reader.SUPPORTED_SCHEMA_VERSION` (currently `"3.2"`), since such a
 file may use attributes this version of the reader doesn't know about yet.
 
+**Unknown attributes.** When a file is read, the reader warns about every attribute and
+element it does not know, and names the closest known one (stackup reader 1.11.1):
+
+```
+WARNING: stackup file, <Layer Name="Metal1">: attribute DataType is not known and is ignored. Did you mean Datatype?
+```
+
+Attribute names are case-sensitive. The warning does not stop the model setup, since a file may
+carry extra attributes of another tool: check it before you trust the model.
+
 ## `<Materials>`
 
 One `<Material>` element per material, referenced by name from `<Dielectric>` and `<Layer>`
@@ -531,7 +541,11 @@ before Priority existed it had 200, the same as a conductor.
 
 **The Stackup Editor** in setupEM has a Priority column on the Dielectric Stack and Layers tabs
 (gray for a sheet). The stackup preview marks two overlapping dielectrics only when their
-Priority is equal.
+Priority is equal. With different Priority it shows the Priority of both, and their tooltips say
+which one keeps the overlap. The preview stays a column of bands, one per dielectric: of two
+dielectrics that start at the same height, the one that reaches higher is drawn above, and a
+layer in the overlap is drawn once, in the dielectric its `Reference` chain starts from, else in
+the one that keeps the overlap.
 
 ## `<Tables>` (thermal conductivity)
 

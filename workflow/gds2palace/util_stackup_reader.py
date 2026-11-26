@@ -79,13 +79,18 @@
 #              BoundaryDatatype on <Dielectric>: such a layer is read from that GDS datatype and gets a
 #              layer id that holds number and datatype (layer_id(), split_layer_id(), layer_text(),
 #              metal_layer.gds_layernum / .datatype, metal_layers_list.get_layer_datatypes()); schema "3.2"
+# 26 Nov 2026: 1.11.1: read_substrate() warns about attributes and elements it does not know (a
+#              misspelled Datatype or Priority was ignored without a message) and names the closest
+#              known one (check_unknown_names(), KNOWN_ATTRIBUTES);
+#              dielectric_layers_list.find_priority_overlap_pairs() for the Stackup Preview
 
-__version__ = "1.11.0"
+__version__ = "1.11.1"
 
 import os
 import math
 import ast
 import operator
+import difflib
 import xml.etree.ElementTree
 
 # Highest <Stackup schemaVersion="..."> this reader understands. schemaVersion is otherwise
@@ -148,6 +153,76 @@ def check_schema_version (substrate_root):
           f'schemaVersion="{SUPPORTED_SCHEMA_VERSION}" supported by this version of '
           f'gds2palace (util_stackup_reader.py {__version__}). It may use attributes this '
           f'reader does not understand yet - consider upgrading gds2palace.')
+
+# The attributes this reader knows, per element. Anything else in a file is not used: check_unknown_names()
+# warns about it. Attributes with a direction suffix (ThermalConductivity.z) are checked by
+# check_directional_attrs(). Keep this in step with what the classes below read.
+KNOWN_ATTRIBUTES = {
+    "Stackup": ("schemaVersion",),
+    "Variables": (),
+    "Variable": ("Name", "Value", "Type", "Min", "Max", "Step", "List", "Description"),
+    "Materials": (),
+    "Material": ("Name", "Type", "Permittivity", "DielectricLossTangent", "Conductivity", "Rs", "Density", "Color",
+                 "ThermalConductivity", "ThermalConductivityTable"),
+    "Tables": (),
+    "Table": ("Name",),
+    "Point": ("Temperature", "Value"),
+    "ELayers": ("LengthUnit",),
+    "Dielectrics": (),
+    "Dielectric": ("Name", "Material", "Thickness", "Zmin", "Zmax", "Reference", "ReferenceEdge", "Boundary",
+                   "BoundaryDatatype", "Priority"),
+    "Layers": (),
+    "Substrate": ("Offset",),
+    "Layer": ("Name", "Type", "Material", "Layer", "Datatype", "Zmin", "Zmax", "Reference", "ReferenceEdge",
+              "Priority"),
+    "DerivedLayers": (),
+    "DerivedLayer": ("Name", "Layer", "Operation", "Oversize"),
+    "Operand": ("Layer", "Datatype"),
+}
+
+
+def find_unknown_names (substrate_root):
+  """Attributes and elements of a stackup tree that this reader does not use, e.g. a misspelled
+     DataType="20" (the attribute is Datatype), which would be ignored without notice.
+  Args:
+      substrate_root (xml.etree.ElementTree.Element): root <Stackup> element
+  Returns:
+      list of string: one message per unknown attribute or element, empty if there is none
+  """
+  def closest(name, known):
+    by_lower = {k.lower(): k for k in known}
+    if name.lower() in by_lower:
+      return by_lower[name.lower()]
+    match = difflib.get_close_matches(name.lower(), list(by_lower), n=1, cutoff=0.7)
+    return by_lower[match[0]] if match else None
+
+  messages = []
+  for element in substrate_root.iter():
+    tag = element.tag
+    if not isinstance(tag, str):
+      continue  # a comment
+    label = f'<{tag} Name="{element.get("Name")}">' if element.get("Name") is not None else f'<{tag}>'
+    if tag not in KNOWN_ATTRIBUTES:
+      hint = closest(tag, KNOWN_ATTRIBUTES)
+      messages.append(f'element <{tag}> is not known and is ignored'
+                      + (f'. Did you mean <{hint}>?' if hint else ''))
+      continue
+    known = KNOWN_ATTRIBUTES[tag]
+    for key in element.attrib:
+      if key in known or (tag == "Material" and "." in key):
+        continue
+      hint = closest(key, known)
+      messages.append(f'{label}: attribute {key} is not known and is ignored'
+                      + (f'. Did you mean {hint}?' if hint else ''))
+  return messages
+
+
+def check_unknown_names (substrate_root):
+  """Print a warning for each attribute or element that this reader does not use (find_unknown_names()).
+     Does not stop: a file may carry extra attributes of another tool."""
+  for message in find_unknown_names(substrate_root):
+    print('WARNING: stackup file, ' + message)
+
 
 def _make_comment_preserving_parser():
   """XML parser that keeps <!-- comments --> as Comment nodes in the tree, instead of
@@ -1320,6 +1395,25 @@ class dielectric_layers_list:
     return pairs
 
 
+  def find_priority_overlap_pairs (self):
+    """Returns (winner, loser) pairs of dielectrics in the same scope whose resolved z-ranges
+       overlap and whose Priority differs: an intended overlap, in which the one with the higher
+       Priority keeps the overlap. The counterpart of find_z_overlap_pairs(), which returns the
+       overlaps with equal Priority (no winner). For the Stackup Preview. Call only after
+       chiplet_groups has been set.
+    """
+    group_id = _group_id_map(self.chiplet_groups, "dielectrics") if self.chiplet_groups is not None else {}
+    pairs = []
+    for i, a in enumerate(self.dielectrics):
+      for b in self.dielectrics[i + 1:]:
+        if group_id.get(a) != group_id.get(b) or a.priority == b.priority:
+          continue
+        overlap = min(a.zmax, b.zmax) - max(a.zmin, b.zmin)
+        if overlap > self._Z_OVERLAP_EPSILON:
+          pairs.append((a, b) if a.priority > b.priority else (b, a))
+    return pairs
+
+
   def find_z_overlaps (self):
     """Human-readable warning strings, one per pair from find_z_overlap_pairs().
     Returns:
@@ -2127,6 +2221,7 @@ def read_substrate (XML_filename, variable_overrides=None):
     # is also called repeatedly for in-memory live-preview re-derivation (e.g. by a GUI
     # editor on every edit) - that would otherwise reprint the same warning constantly
     check_schema_version(substrate_root)
+    check_unknown_names(substrate_root)
 
     materials_list, dielectrics_list, metals_list = parse_substrate(substrate_root, variable_overrides)
     metals_list.xml_filename = XML_filename

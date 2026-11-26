@@ -93,3 +93,46 @@ def test_two_layers_with_the_same_name_stop(tmp_path):
                            '<Layer Name="Metal1" Type="conductor" Zmin="2" Zmax="2.4" Material="Metal1" Layer="10" />')
     with pytest.raises(SystemExit):
         read(path)
+
+UNKNOWN_NAMES = '''<?xml version="1.0" encoding="UTF-8"?>
+<Stackup schemaVersion="3.2">
+  <Materials>
+    <Material Name="Cu" Type="Conductor" Conductivity="5.8e7" ThermalConductivity.z="300" Colour="ff0000" />
+    <Material Name="Ox" Type="Dielectric" Permittivity="4" />
+  </Materials>
+  <ELayers LengthUnit="um">
+    <Dielectrics>
+      <Dielectric Name="Box" Material="Ox" Zmin="0" Zmax="10" priority="-1" />
+    </Dielectrics>
+    <Layers>
+      <Layer Name="M1" Type="conductor" Material="Cu" Layer="68" DataType="20" Zmin="1" Zmax="2" Note="pad" />
+      <Layr Name="M2" Type="conductor" Material="Cu" Layer="69" Zmin="3" Zmax="4" />
+    </Layers>
+  </ELayers>
+</Stackup>'''
+
+
+def test_unknown_attributes_and_elements_are_reported(tmp_path, capsys):
+    """A misspelled attribute or element is not used: read_substrate() says so and names the closest known one
+    (stackup reader 1.11.1). It does not stop."""
+    path = tmp_path / 'unknown.xml'
+    path.write_text(UNKNOWN_NAMES, encoding='utf-8')
+    _, _, metals = stackup_reader.read_substrate(str(path))
+    printed = capsys.readouterr().out
+    assert 'WARNING: stackup file, <Material Name="Cu">: attribute Colour is not known and is ignored. Did you mean Color?' in printed
+    assert '<Dielectric Name="Box">: attribute priority is not known and is ignored. Did you mean Priority?' in printed
+    assert '<Layer Name="M1">: attribute DataType is not known and is ignored. Did you mean Datatype?' in printed
+    assert '<Layer Name="M1">: attribute Note is not known and is ignored\n' in printed
+    assert 'element <Layr> is not known and is ignored. Did you mean <Layer>?' in printed
+    assert 'ThermalConductivity.z' not in printed                # a direction suffix is a known attribute
+    assert printed.count('is not known') == 5
+    assert metals.getbylayername('M1').datatype is None          # the misspelled Datatype was not used
+
+
+def test_known_names_give_no_warning(tmp_path, capsys):
+    path = tmp_path / 'known.xml'
+    path.write_text(UNKNOWN_NAMES.replace('Colour', 'Color').replace('priority', 'Priority')
+                    .replace('DataType', 'Datatype').replace(' Note="pad"', '').replace('<Layr', '<Layer'),
+                    encoding='utf-8')
+    stackup_reader.read_substrate(str(path))
+    assert 'is not known' not in capsys.readouterr().out
