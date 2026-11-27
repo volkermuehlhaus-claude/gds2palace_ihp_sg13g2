@@ -1,0 +1,69 @@
+@@
+-#              get_material_from_layer_or_dielectric_name() in util_simulation_setup.py for
+-#              where the reserved name is resolved into each solver's ideal-conductor construct
++#              addGeometry_to_CSX() in util_simulation_setup.py for where the reserved name is
++#              resolved into a literal ideal-conductor CSX.AddMetal(...) construct
+@@
+-#              multiple chiplets, gds2palace needs an explicit Boundary= on both the shared
+-#              branch point and each chiplet's own root Dielectric - unlike a single-chiplet
+-#              stackup, there's no longer a single "whole GDS extent" fallback that means
+-#              anything for either side of the branch
+-# 02 Oct 2026: read_substrate() stores the file name as metals_list.xml_filename (None if the
+-#              list was built some other way), so solver setup errors can name the stackup file
++#              multiple chiplets, an explicit Boundary= is needed on both the shared branch
++#              point and each chiplet's own root Dielectric - unlike a single-chiplet stackup,
++#              there's no longer a single "whole GDS extent" fallback that means anything for
++#              either side of the branch
+@@
+-#              error (Reference and target layer lookups use the name)
++#              error (Reference and target layer lookups use the name). Same fixes as gds2palace's reader.
+@@
+-#              metal_layer.gds_layernum / .datatype, metal_layers_list.get_layer_datatypes()); schema "3.2"
++#              metal_layer.gds_layernum / .datatype, metal_layers_list.get_layer_datatypes()); schema "3.2". Same as gds2palace's reader; openEMS
++#              doesn't use thermal values.
+@@
+-#              dielectric_layers_list.find_priority_overlap_pairs() for the Stackup Preview
++#              dielectric_layers_list.find_priority_overlap_pairs() for the Stackup Preview. Same as gds2palace's reader.
+@@
+-# directly on metal_layer.material by util_simulation_setup.py/util_elmer.py, bypassing
++# directly on metal_layer.material by util_simulation_setup.py, bypassing
+@@
+-       (compute_stackup_layout()/InteractiveRegionItem in setup_common.py).
++       (compute_stackup_layout()/InteractiveRegionItem in editor_common.py).
+@@
+-       genuinely optional (gds2palace can fall back to the whole GDS extent), but once a
+-       stackup branches into multiple chiplets sharing one interposer, gds2palace needs an
+-       explicit Boundary on both sides of the branch to know which polygons belong to the
+-       shared base and which belong to each chiplet - there's no longer a single "whole GDS
+-       extent" that means anything. A branch point referenced by 2+ chiplets is only checked
+-       once (same underlying Dielectric object). Call only after chiplet_groups has been set
+-       (i.e. after detect_chiplet_groups() has run).
++       genuinely optional (the GDSII reader can fall back to the whole GDS extent), but once a
++       stackup branches into multiple chiplets sharing one interposer, an explicit Boundary is
++       needed on both sides of the branch to know which polygons belong to the shared base and
++       which belong to each chiplet - there's no longer a single "whole GDS extent" that means
++       anything. A branch point referenced by 2+ chiplets is only checked once (same underlying
++       Dielectric object). Call only after chiplet_groups has been set (i.e. after
++       detect_chiplet_groups() has run).
+@@
+-    return [f"Dielectric '{d.name}' has no Boundary= layer number - required for gds2palace "
+-            f"to compute the correct bounding box once a stackup branches into chiplets"
++    return [f"Dielectric '{d.name}' has no Boundary= layer number - required once a stackup "
++            f"branches into chiplets, to compute the correct bounding box for each region"
+@@
+-       (VectorWidget/compute_stackup_layout() in setup_common.py).
++       (VectorWidget/compute_stackup_layout() in setup_common.py) - this openEMS copy has the
++       analogous editor_common.py/stackupEditor.py.
+@@
+-    self.xml_filename = None  # stackup file name, set by read_substrate()
+@@
+-        # Elmer interpolates between neighbouring points, so they must be in ascending temperature
++        # a table is interpolated between neighbouring points, so they must be in ascending temperature
+@@
+-    materials_list, dielectrics_list, metals_list = parse_substrate(substrate_root, variable_overrides)
+-    metals_list.xml_filename = XML_filename
+-    return materials_list, dielectrics_list, metals_list
++    return parse_substrate(substrate_root, variable_overrides)
+@@
+-  # layers are found by name (Reference, port and heat source target layers), so a name must be unique
++  # layers are found by name (Reference, port and target layers), so a name must be unique

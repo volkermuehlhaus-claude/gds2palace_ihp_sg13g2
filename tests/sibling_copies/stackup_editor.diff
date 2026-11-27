@@ -1,0 +1,259 @@
+@@
+-GUI editor for stackup XML files (see gds2palace/XML_stackup_format.md):
++GUI editor for openEMS stackup XML files (see doc/XML_stackup_format.md):
+@@
+-setup_common.VectorWidget. Normally opened from Tools > Edit Stackup XML... in
+-setupEM / setupThermal (wired up in setup_common.MainWindowBase.create_menu_bar(),
+-so it is available in both apps for free) - but also runnable standalone, either
+-directly (`python stackupEditor.py [file.xml]`) or via the `stackupEditor` console
+-script installed with this package (see main() below and pyproject.toml).
++editor_common.VectorWidget. This is a standalone tool (no host application to be
++opened from) - run it directly (`python stackupEditor.py [file.xml]`) or via the
++`stackupEditor` console script installed with this package (see main() below and
++pyproject.toml).
++
++Ported from setupEM's stackupEditor.py (which targets gds2palace's Palace-format
++stackup reader) to work against this repo's own, independently-maintained
++gds2openEMS.stackup_reader. Per this workspace's convention (see CLAUDE.md), the
++two editors are duplicated, not shared/symlinked.
+@@
+-through gds2palace.stackup_writer.load_stackup_tree(), which preserves XML
+-comments, and only Variable/Material/Dielectric/Layer/Substrate/DerivedLayer
++through this package's own stackup_writer.load_stackup_tree(), which preserves
++XML comments, and only Variable/Material/Dielectric/Layer/Substrate/DerivedLayer
+@@
+-    QSyntaxHighlighter, QTextCharFormat, QFont, QShortcut,
++    QSyntaxHighlighter, QTextCharFormat, QFont,
+@@
+-from gds2palace import stackup_reader
++from gds2openEMS import stackup_reader
+@@
+-# __package__ is None/"" when this module was loaded outside the setupEM package
+-# (e.g. setupEM.py run directly), so relative import fails - same dual-mode pattern
+-# used throughout setupEM.py/setup_common.py for their own sibling imports.
++# __package__ is None/"" when this module was loaded outside the stackup_editor package
++# (e.g. stackupEditor.py run directly), so relative import fails - same dual-mode
++# pattern used throughout this package's own modules for their sibling imports.
+@@
+-  from cli_common import add_version_argument
+@@
+-  from .cli_common import add_version_argument
+@@
+-# as part of the setupEM package, so relative import fails.
++# as part of the stackup_editor package, so relative import fails.
+@@
+-    from setup_common import (
++    from editor_common import (
+@@
+-    from .setup_common import (
++    from .editor_common import (
+@@
+-# QSettings scope for the "Open Recent" file list - shared across setupEM/setupThermal/
+-# standalone launches, since they all edit the same kind of stackup XML file and should
+-# see each other's recently opened/saved files.
++# QSettings scope for the "Open Recent" file list. Kept distinct from setupEM's own
++# stackupEditor (which uses RECENT_FILES_APP="StackupEditor" under the same org) even
++# though the file format is structurally identical - these edit openEMS-format
++# stackups from a separate venv/toolchain, and mixing recent-file histories between
++# the two editors would be confusing (e.g. a Palace-format file added to this app's
++# recent list, or vice versa).
+@@
+-RECENT_FILES_APP = "StackupEditor"
++RECENT_FILES_APP = "OpenEMSStackupEditor"
+@@
+-        self.note = QLabel("optional: for empty fields and older gds2palace")
++        self.note = QLabel("optional: for empty fields and older stackup readers")
+@@
+-        info = "Used for an empty field above, and by gds2palace before 0.13.0" if directional else ""
++        info = "Used for an empty field above, and by stackup readers before 1.11.0" if directional else ""
+@@
+-    def __init__(self, vector_widget, parent=None, legend_widget=None, chiplet_switcher=None,
+-                 show_errors_fn=None):
++    def __init__(self, vector_widget, parent=None, chiplet_switcher=None, show_errors_fn=None):
+@@
+-        if legend_widget is not None:
+-            layout.addWidget(legend_widget)
+@@
+-
+-        # Ctrl+C copies the stackup cross-section (not the legend) to the
+-        # clipboard as an image - window-scoped (default QShortcut context) so
+-        # it fires regardless of which child widget currently has focus
+-        QShortcut(QKeySequence.Copy, self).activated.connect(
+-            lambda: QApplication.clipboard().setPixmap(vector_widget.grab()))
+@@
+-        self.setWindowTitle("Stackup Editor")
++        self.setWindowTitle("openEMS Stackup Editor")
+@@
+-        # serialized snapshot as of the last load/new/save - has_unsaved_changes()
+-        # compares against this; lets the main app decide whether this editor can
+-        # be closed silently (e.g. when a different substrate file is selected there)
+-        self._saved_snapshot = None
+@@
++
+@@
+-                "Description": "Help text, e.g. the unit; shown in setupEM's override table",
++                "Description": "Help text, e.g. the unit",
+@@
+-            reorder_fn=stackup_writer.reorder_layers,
+-            descending_attrs={"ResultZmin", "ResultZmax"},
+@@
+-                            "(Purpose on the Input Files tab, normally 0). With a Datatype, two layers can "
++                            "(purposelist in the model script, normally 0). With a Datatype, two layers can "
+@@
++            reorder_fn=stackup_writer.reorder_layers,
++            descending_attrs={"ResultZmin", "ResultZmax"},
+@@
+-            metal_color_fn=self.MainWindow.stackup_metal_color,
+@@
+-        # window can be closed (manually, or auto-closed - see
+-        # _close_stackup_editor_if_clean in setup_common.py) in the interval between
+-        # scheduling one of these and the timer actually firing, which would
+-        # otherwise hit a RuntimeError from touching an already-deleted Qt widget.
++        # window can be closed in the interval between scheduling one of these and
++        # the timer actually firing, which would otherwise hit a RuntimeError from
++        # touching an already-deleted Qt widget.
+@@
+-        legend_fn = getattr(self.MainWindow, "stackup_color_legend", None)
+-        legend_widget = legend_fn() if legend_fn is not None else None
+-        self.preview_window = StackupPreviewWindow(self.vector_widget, legend_widget=legend_widget,
+-                                                    chiplet_switcher=self.chiplet_switcher,
++        self.preview_window = StackupPreviewWindow(self.vector_widget, chiplet_switcher=self.chiplet_switcher,
+@@
+-           can be closed (manually, or auto-closed - see
+-           _close_stackup_editor_if_clean in setup_common.py) in the interval
+-           between scheduling one and the timer actually firing, which would
+-           otherwise raise "Internal C++ object already deleted" from touching
+-           self.tabs/self.tree/etc. on a dead widget.
++           can be closed in the interval between scheduling one and the timer
++           actually firing, which would otherwise raise "Internal C++ object
++           already deleted" from touching self.tabs/self.tree/etc. on a dead widget.
+@@
+-           _handle_dielectric_thickness_change() above.
++           _handle_dielectric_thickness_change() below.
+@@
+-           Variable and reference it as Boundary= on all of them - gds2palace needs an
+-           explicit Boundary on both sides of a chiplet branch to know which GDS polygons
+-           belong to the shared base and which belong to each chiplet (see
++           Variable and reference it as Boundary= on all of them - an explicit Boundary is
++           needed on both sides of a chiplet branch to know which GDS polygons belong to the
++           shared base and which belong to each chiplet (see
+@@
+-            "gds2palace needs Boundary= on both the shared base and each chiplet's own root "
+-            "Dielectric to compute the correct bounding box once a stackup branches like "
+-            "this. Add one shared Variable now and reference it as Boundary= on all of them? "
+-            "You'll still need to set its actual GDS layer number on the Variables tab "
++            "An explicit Boundary= is needed on both the shared base and each chiplet's own "
++            "root Dielectric to compute the correct bounding box once a stackup branches "
++            "like this. Add one shared Variable now and reference it as Boundary= on all of "
++            "them? You'll still need to set its actual GDS layer number on the Variables tab "
+@@
+-        app_name = getattr(self.MainWindow, "APP_NAME", "setupEM")
++        app_name = getattr(self.MainWindow, "APP_NAME", "openEMS Stackup Editor")
+@@
+-        # this is now the "nothing to lose" baseline again
+-        self._mark_saved_baseline()
+@@
+-           stamps a comment noting the minimum gds2palace reader version needed to read the
++           stamps a comment noting the minimum gds2openEMS reader version needed to read the
+@@
+-        app_name = getattr(self.MainWindow, "APP_NAME", "setupEM")
++        app_name = getattr(self.MainWindow, "APP_NAME", "openEMS Stackup Editor")
+@@
+-        # also the new "nothing to lose" baseline for has_unsaved_changes()
+-        self._mark_saved_baseline()
+-
+-    def _mark_saved_baseline(self):
+-        self._saved_snapshot = (
+-            ET.tostring(self.tree.getroot(), encoding="unicode") if self.tree is not None else None
+-        )
+-
+-    def has_unsaved_changes(self):
+-        """True if the in-memory tree differs from what was last loaded/created/saved.
+-           Used by the main app to decide whether this editor can be closed silently
+-           (e.g. when a different substrate file is selected there) without risking
+-           losing an in-progress edit.
+-        """
+-        if self.tree is None:
+-            return False
+-        return ET.tostring(self.tree.getroot(), encoding="unicode") != self._saved_snapshot
+@@
+-           matching slab in the preview. A deselected table (row < 0) clears the
+-           preview selection too, so listeners outside this editor (e.g. Layout
+-           Preview's cross-window highlight) see the clear as well."""
++           matching slab in the preview."""
+@@
+-        else:
+-            self.vector_widget.scene().clearSelection()
+@@
+-           metal/via/sheet box in the preview. A deselected table (row < 0) clears
+-           the preview selection too, so listeners outside this editor (e.g.
+-           Layout Preview's cross-window highlight) see the clear as well."""
++           metal/via/sheet box in the preview."""
+@@
+-        else:
+-            self.vector_widget.scene().clearSelection()
++        self.vector_widget.update()
+@@
+-        app_name = getattr(self.MainWindow, "APP_NAME", "setupEM")
++        app_name = getattr(self.MainWindow, "APP_NAME", "openEMS Stackup Editor")
+@@
+-    """Minimal stand-in for the real setupEM/setupThermal MainWindow, used only when this
+-       module is run on its own rather than opened from within the full app (Tools > Edit
+-       Stackup XML...). Provides the handful of attributes/methods StackupEditorWindow needs
++    """Minimal stand-in for a full host application's MainWindow. This editor has no such
++       host in gds2openEMS (unlike setupEM's original, where the equivalent stand-in exists
++       only as a fallback for the rare direct-run case, since setupEM/setupThermal normally
++       provide a real MainWindow) - here it is the only way this window is ever constructed,
++       via main() below. Provides the handful of attributes/methods StackupEditorWindow needs
+@@
+-       permittivity/sheet-resistance-based defaults setupEM.py's real MainWindow uses (see
+-       setup_common.epsilon_to_color()/default_stackup_dielectric_label()/
+-       default_stackup_metal_label()) - shared there specifically so this stand-in doesn't
+-       need its own, weaker copy (or an import from setupEM.py, which itself reaches this
+-       module via setup_common.py, risking a circular import).
++       permittivity/sheet-resistance-based defaults this module's ported setupEM ancestor
++       used (see editor_common.epsilon_to_color()/default_stackup_dielectric_label()/
++       default_stackup_metal_label()).
+@@
+-    APP_NAME = "Stackup Editor"
++    APP_NAME = "openEMS Stackup Editor"
+@@
+-
+-    def stackup_metal_color(self, material):
+-        return None  # no override - compute_stackup_layout()'s default type-based color
+@@
+-    """Run the Stackup Editor as a standalone application. Not how setupEM/setupThermal
+-       normally open it (Tools > Edit Stackup XML..., with the real app's MainWindow) - this
+-       is for editing/inspecting a stackup file on its own, with no gds2palace model/
+-       simulation setup involved. Preview coloring/labeling still matches the real app (see
++    """Run the openEMS Stackup Editor as a standalone application - this is for
++       editing/inspecting an openEMS-format stackup file on its own, with no
++       gds2openEMS model/simulation setup involved. Preview coloring/labeling uses
++       the permittivity/sheet-resistance-based defaults from editor_common.py (see
+@@
+-    # arguments first: --help, --version and a wrong argument need no display
+-    parser = argparse.ArgumentParser(prog="stackupEditor", description="Standalone stackup XML editor")
+-    parser.add_argument("xmlfile", nargs="?", default=None, help="stackup XML file to open")
+-    add_version_argument(parser)
+-    args = parser.parse_args()
+-
+@@
+-    # Pin a light color scheme so the explicit light backgrounds set on
+-    # QLineEdit/QComboBox fields elsewhere aren't fighting an inherited dark
+-    # auto-palette on accounts where Windows' per-user dark-mode setting is
+-    # on (PySide6 6.5+ only; older versions just skip this and rely on the
+-    # explicit "color:" rules already set on those field stylesheets).
++    # Pin a light color scheme so the preview's light fills and any light field
++    # backgrounds aren't fighting an inherited dark auto-palette on accounts where
++    # Windows' per-user dark-mode setting is on (PySide6 6.5+ only; older versions
++    # just skip this)
+@@
+-        # matches setupEM.py's/setupThermal.py's main() - without this, Qt's default style
+-        # on Windows looks visibly different (fonts/widget chrome) from the full app
++        # without this, Qt's default style on Windows looks visibly different
++        # (fonts/widget chrome) from the platform-native style
+@@
++
++    parser = argparse.ArgumentParser(description="Standalone stackup XML editor")
++    parser.add_argument("xmlfile", nargs="?", default=None, help="stackup XML file to open")
++    args = parser.parse_args()

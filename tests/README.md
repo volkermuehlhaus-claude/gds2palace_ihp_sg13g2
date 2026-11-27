@@ -23,6 +23,7 @@ The same two commands run on GitHub for every push and pull request (`.github/wo
 | `test_via_merge_ring.py` | Via array merging keeps a ring of vias around an opening (a guard ring) whole |
 | `test_stackup_reader.py` | Stackup reader edge cases: sheets by numeric Zmin/Zmax, negative Substrate Offset, sorted table points, unique layer names |
 | `test_elmer_order.py` | Elmer EM models: FEM order 3 runs as order 2, with a warning |
+| `test_sibling_copies.py` | Files copied by hand between the sibling repositories (stackup reader, Stackup Editor, run scripts, bundled stackups, PDF build) have not drifted apart, and the functions that the GDS readers of gds2palace and gds2openEMS share still have the same code. Intended differences are recorded in `tests/sibling_copies/`; `UPDATE_SIBLING_COPIES=1` rewrites them. Skipped when the sibling repositories are not next to this one |
 
 ## The example tests
 

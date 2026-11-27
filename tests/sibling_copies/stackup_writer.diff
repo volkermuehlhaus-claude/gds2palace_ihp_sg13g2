@@ -1,0 +1,80 @@
+@@
+-# Copyright 2025 Volker Muehlhaus and IHP PDK Authors
++# Copyright 2025-2026 Volker Muehlhaus and IHP PDK Authors
+@@
+-Load/edit/save/validate stackup XML files (see XML_stackup_format.md) at the
++Load/edit/save/validate stackup XML files (see doc/XML_stackup_format.md) at the
+@@
+-This module is deliberately kept separate from gds2palace's util_stackup_reader.py:
++This module is deliberately kept separate from gds2openEMS's util_stackup_reader.py:
+@@
+-dielectric_layer, metal_layer, ...) used by the rest of gds2palace, while this
++dielectric_layer, metal_layer, ...) used by the rest of gds2openEMS, while this
+@@
+-completely untouched. It lives here in setupEM rather than in gds2palace because
+-setupEM is its only real consumer - gds2palace's own workflow only ever reads
+-stackup files, never edits/writes them.
++completely untouched. It lives here in stackup_editor rather than in gds2openEMS
++because stackup_editor is its only real consumer - gds2openEMS's own workflow only
++ever reads stackup files, never edits/writes them.
++
++Ported from setupEM's stackup_writer.py (which targets gds2palace's own,
++independently-maintained copy of util_stackup_reader.py) - re-pointed at this
++repo's own gds2openEMS.stackup_reader. Per this workspace's convention (see
++CLAUDE.md), the two are duplicated, not shared/symlinked.
+@@
+-from gds2palace import stackup_reader
++from gds2openEMS import stackup_reader
+@@
+-      app_name (string): name of the host application (e.g. "setupEM", "setupThermal")
++      app_name (string): name of the host application (e.g. "openEMS Stackup Editor")
+@@
+-REFERENCE_FORMAT_COMMENT_PREFIX = "Reference-relative positioning requires gds2palace util_stackup_reader.py version"
++REFERENCE_FORMAT_COMMENT_PREFIX = "Reference-relative positioning requires gds2openEMS util_stackup_reader.py version"
+@@
+-  """Insert or update a comment noting the minimum gds2palace reader version needed to
++  """Insert or update a comment noting the minimum gds2openEMS reader version needed to
+@@
+-DERIVED_LAYERS_FORMAT_COMMENT_PREFIX = "Derived layers require gds2palace util_stackup_reader.py version"
++DERIVED_LAYERS_FORMAT_COMMENT_PREFIX = "Derived layers require gds2openEMS util_stackup_reader.py version"
+@@
+-  """Insert or update a comment noting the minimum gds2palace reader version needed to
++  """Insert or update a comment noting the minimum gds2openEMS reader version needed to
+@@
+-VARIABLES_FORMAT_COMMENT_PREFIX = "<Variables>/\"=\" expressions require gds2palace util_stackup_reader.py version"
++VARIABLES_FORMAT_COMMENT_PREFIX = "<Variables>/\"=\" expressions require gds2openEMS util_stackup_reader.py version"
+@@
+-  """Insert or update a comment noting the minimum gds2palace reader version needed to
++  """Insert or update a comment noting the minimum gds2openEMS reader version needed to
+@@
+-# "Stackup format 3.2 features used (Priority, allowed values of Variables) require gds2palace
++# "Stackup format 3.2 features used (Priority, allowed values of Variables) require gds2openEMS
+@@
+-DIRECTIONAL_FORMAT_COMMENT_PREFIX = "Direction-dependent thermal conductivity (.xy/.z) and Priority require gds2palace util_stackup_reader.py version"
++DIRECTIONAL_FORMAT_COMMENT_PREFIX = "Direction-dependent thermal conductivity (.xy/.z) and Priority require gds2openEMS util_stackup_reader.py version"
+@@
+-      f" {FORMAT_32_COMMENT_PREFIX} ({', '.join(features)}) require gds2palace util_stackup_reader.py "
++      f" {FORMAT_32_COMMENT_PREFIX} ({', '.join(features)}) require gds2openEMS util_stackup_reader.py "
+@@
+-     to the reader), this one is load-bearing: the Elmer thermal-solver consumer
+-     (gds2palace's util_simulation_setup.py) emits points in whatever order
+-     util_stackup_reader.thermal_table.points iterates, with no sorting of its own, so an
+-     out-of-order file produces a physically wrong piecewise-linear lookup curve.
++     to the reader), this one is load-bearing: a thermal-solver consumer that iterates a
++     material's <Table> emits points in whatever order they come back, with no sorting of
++     its own, so an out-of-order file can produce a physically wrong piecewise-linear
++     lookup curve for any downstream tool that relies on file order.
+@@
+-  the file has no effect on gds2palace's own reader, which re-sorts metals by
++  the file has no effect on gds2openEMS's own reader, which re-sorts metals by
+@@
+-     Name="PEC"> entry in the file. PEC is a reserved keyword gds2palace recognizes directly
++     Name="PEC"> entry in the file. PEC is a reserved keyword gds2openEMS recognizes directly
+@@
+-     properties (Type/Permittivity/Conductivity/etc.) are silently ignored, which is worth
+-     flagging since it's easy to mistake for having an effect.
++     properties (Type/Conductivity/etc.) are silently ignored, which is worth flagging since
++     it's easy to mistake for having an effect.
+@@
+-            f"Material '{name}' is a reserved name - gds2palace always treats a layer's "
++            f"Material '{name}' is a reserved name - gds2openEMS always treats a layer's "

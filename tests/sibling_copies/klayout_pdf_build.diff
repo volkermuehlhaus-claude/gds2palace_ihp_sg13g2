@@ -1,0 +1,4 @@
+@@
++    ap.add_argument("--chapter-pagebreak", action="store_true", help="start each chapter (##) on a new page")
+@@
++    header += f"\n#let doc-chapter-pagebreak = {'true' if args.chapter_pagebreak else 'false'}"

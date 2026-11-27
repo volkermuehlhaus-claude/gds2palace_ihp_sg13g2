@@ -1,0 +1,42 @@
+only in gds2palace_ihp_sg13g2: _fracture_valid_pieces, _is_benign_single_keyhole, _repair_malformed_polygons, _union_reference, all_polygons_list.get_drawn_bounding_box, all_polygons_list.update_bounding_box
+only in openems_ihp_sg13g2: 
+== all_bounding_box_list.get_layer_bounding_box
+@@
++        layer = int(layer)
+@@
+-            bbox = self.bounding_boxes[int(layer)]
++            bbox = self.bounding_boxes[layer]
+== all_polygons_list.__init__
+@@
+-    self.derived_layernums = set()
+== all_polygons_list.add_polygon
+@@
+-def add_polygon(self, xy, layernum, is_port=False):
++def add_polygon(self, xy, layernum, is_port=False, is_via=False):
+== all_polygons_list.add_rectangle
+@@
+-def add_rectangle(self, x1, y1, x2, y2, layernum, is_port=False):
++def add_rectangle(self, x1, y1, x2, y2, layernum, is_port=False, is_via=False):
+@@
++    poly.is_via = is_via
+== all_polygons_list.merge
+@@
+-    self.derived_layernums |= getattr(another_polygons_list, 'derived_layernums', set())
+== gds_polygon.__init__
+@@
++    self.is_via = False
+== gds_polygon.__str__
+@@
+-    mystr = 'Layer = ' + layer_text(self.layernum) + ', Polygon = ' + str(self.pts)
++    mystr = 'Layer = ' + layer_text(self.layernum) + ', Polygon = ' + str(self.pts) + ', Via = ' + str(self.is_via)
+== read_gds
+@@
+-            all_polygons.derived_layernums = set(derived_layers.getlayernumbers())
+@@
+-        solid_layers = None
+-        if metals_list is not None:
+-            solid_layers = set(metals_list.getlayernumbers())
+-            solid_layers.update((int(layer) for layer in gds_boundary_layers))
+-            if derived_layers is not None:
+-                solid_layers.update(derived_layers.getlayernumbers())
+-        _repair_malformed_polygons(all_polygons, solid_layers)
