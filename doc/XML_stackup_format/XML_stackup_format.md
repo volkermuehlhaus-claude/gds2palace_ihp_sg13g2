@@ -406,6 +406,12 @@ Metal2         69         69           212
 
 A reader older than 1.11.0 ignores `Datatype` and reads the datatypes of `purposelist`.
 
+**The other tools.** setupEM's Simplify GDS and layout preview, gds_prepare_for_EM's library functions (1.9.0)
+and the layout tools of the gds2palace MCP server look at the datatype a layer names. The KLayout plug-in
+klayout_em_export exports such a layer on its datatype, but its ground check, nets, port checks and device
+recognition look at datatype 0 only, and say so. The command-line tools of gds_prepare_for_EM take layer numbers
+and treat every datatype of a number alike.
+
 In the Stackup Editor, the Layers tab has a "Datatype (optional)" column, the Dielectric Stack
 tab "Boundary datatype (optional)", and the operands of a derived layer are written as `68/20`.
 
