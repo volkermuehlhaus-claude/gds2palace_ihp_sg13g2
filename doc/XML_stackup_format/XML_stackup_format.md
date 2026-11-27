@@ -409,7 +409,8 @@ A reader older than 1.11.0 ignores `Datatype` and reads the datatypes of `purpos
 **The other tools.** setupEM's Simplify GDS and layout preview, gds_prepare_for_EM's library functions (1.9.0)
 and the layout tools of the gds2palace MCP server look at the datatype a layer names. The KLayout plug-in
 klayout_em_export reads such a layer from its datatype in the export, the ground check, the nets, the port
-checks and its clean-up tools. The command-line tools of gds_prepare_for_EM take layer numbers and treat every
+checks and its clean-up tools, and computes a derived conductor or via from its operands for its checks (e.g.
+Metal1 as 8/0 NOT 8/24, with the ground drawn on 8/0). The command-line tools of gds_prepare_for_EM take layer numbers and treat every
 datatype of a number alike.
 
 In the Stackup Editor, the Layers tab has a "Datatype (optional)" column, the Dielectric Stack
