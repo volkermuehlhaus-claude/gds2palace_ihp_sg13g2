@@ -18,6 +18,12 @@ The main new features of the last months, with the version that brought them:
 
 Each dated section below lists the new features first, then changed behaviour, then fixes.
 
+## 27 November-2026
+
+### Changed behaviour
+
+- Thermal models: two heat sources or constant-temperature boundaries on the same GDS layer now stop the model setup with a message. Before, only the first one was built and the other was left out without notice. Each heat source and each boundary needs its own GDS layer.
+
 ## 26 November-2026
 
 ### New

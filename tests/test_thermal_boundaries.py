@@ -22,6 +22,21 @@ def gmsh_model():
     gmsh.finalize()
 
 
+def test_a_source_layer_used_twice_is_refused():
+    """the objects are found by their GDS layer: a second one on the same layer was left out of the model silently"""
+    thermal_objects = simulation_setup.all_thermal_objects()
+    thermal_objects.add_consttemp(simulation_setup.constanttemp(temp=300.0, source_layernum=202, target_layername="Metal1"))
+    with pytest.raises(ValueError, match="GDS layer 202 is used by two thermal objects"):
+        thermal_objects.add_consttemp(simulation_setup.constanttemp(temp=300.0, source_layernum=202,
+                                                                    target_layername="BACKSIDEGND"))
+    with pytest.raises(ValueError, match="GDS layer 202"):
+        thermal_objects.add_heatsource(simulation_setup.heatsource(power=0.1, source_layernum=202,
+                                                                   target_layername="HEAT_RESISTOR"))
+    thermal_objects.add_heatsource(simulation_setup.heatsource(power=0.1, source_layernum=201,
+                                                               target_layername="HEAT_RESISTOR"))
+    assert thermal_objects.layers == [202, 201]
+
+
 def test_every_polygon_of_a_constant_temperature_layer_gets_faces(tmp_path, gmsh_model):
     lib = gdstk.Library()
     cell = lib.new_cell("DESIGN")

@@ -1384,7 +1384,7 @@ thermal_objects.add_consttemp(simulation_setup.constanttemp(
     temp=298, source_layernum=202, target_layername='BACKSIDEGND'))
 ```
 
-- `source_layernum` is a GDSII layer number you draw purely as an xy footprint marker; it does not set a z-position.
+- `source_layernum` is a GDSII layer number you draw purely as an xy footprint marker; it does not set a z-position. Each heat source and each boundary needs its own layer number, also where two of them have the same outline (e.g. a boundary on top and one at the back of the chip): a layer used twice stops the model setup with a message.
 - `target_layername` is the name of an existing `<Layer>` from the stackup XML — its z-range becomes the 3D volume the source/boundary is applied to.
 - `heatsource(power, ...)` dissipates `power` Watts as a volumetric heat source over that volume. In the example above, 0.65 W is applied to the `TFR` resistor layer via marker layer 201. If the marker layer has several polygons, `power` is the total for all of them, not the power per polygon.
 - `constanttemp(temp, ...)` fixes that volume's temperature (Kelvin), acting as a heat sink/reference boundary. In the example above, layer 202 pins the `BACKSIDEGND` layer to 298 K (25 °C), a typical backside heatsink boundary.

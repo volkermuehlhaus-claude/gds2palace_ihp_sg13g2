@@ -18,7 +18,7 @@
 
 # -*- coding: utf-8 -*-
 
-__version__ = "1.25.0"
+__version__ = "1.25.1"
 
 # solvers where settings['fill_factor_correction'] is applied (checked by setupEM)
 FILL_FACTOR_CORRECTION_SOLVERS = ("palace", "elmer", "elmer_thermal")
@@ -317,19 +317,33 @@ class all_thermal_objects:
           heatsource instance to be added
       """
 
+      self._check_layer_unused(heatsource)
       self.objects.append(heatsource)
       self.layers.append(heatsource.source_layernum)
 
 
   def add_consttemp (self, constanttemp):
-      """Add heatsource
+      """Add constant temperature boundary
       Args:
-          heatsource instance to be added
+          constanttemp instance to be added
       """
 
+      self._check_layer_unused(constanttemp)
       self.objects.append(constanttemp)
       self.layers.append(constanttemp.source_layernum)
 
+
+
+  def _check_layer_unused (self, new_object):
+      """A heat source or boundary is found by its GDS source layer, also in the names of the model and the result
+      files, so a second one on the same layer would be left out of the model without a message."""
+      for existing in self.objects:
+          if existing.source_layernum == new_object.source_layernum:
+              raise _thermal_setup_error(
+                  f"GDS layer {new_object.source_layernum} is used by two thermal objects:\n"
+                  f"   {existing}\n   {new_object}\n"
+                  "Each heat source and each constant-temperature boundary needs its own GDS layer. "
+                  "Draw the second shape on another layer, also where both have the same outline.")
 
 
   def get_object_by_layernumber (self, layernum):   
