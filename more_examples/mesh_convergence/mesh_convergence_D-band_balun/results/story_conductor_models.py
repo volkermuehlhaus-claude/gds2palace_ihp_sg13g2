@@ -17,12 +17,12 @@ import story_plots as S
 BLUE = "#2a78d6"
 RUNS = [  # label, Touchstone file, DOF, iterations per solve, color, line style
     ("surface impedance, 1 µm", "balun_mesh1um.s3p", 678946, None, BLUE, "-"),
-    ("solve_inside, 2 µm", "balun_filled_mesh2.s3p", 395498, 37, S.ORANGE, "--"),
-    ("solve_inside_skin, 2 µm", "balun_skin_mesh2.s3p", 713252, 45, S.AQUA, "--"),
-    ("solve_inside_skin, 1 µm", "balun_skin_mesh1.s3p", 1726254, 31, S.INK, "-"),
+    ("solve_inside, 2 µm", "balun_filled_mesh2.s3p", 395498, 30, S.ORANGE, "--"),
+    ("solve_inside_skin, 2 µm", "balun_skin_mesh2.s3p", 713252, 37, S.AQUA, "--"),
+    ("solve_inside_skin, 1 µm", "balun_skin_mesh1.s3p", 1726254, 26, S.INK, "-"),
 ]
-TABLE = RUNS + [("solve_inside_skin, 3 µm", "balun_skin_mesh3.s3p", 487182, 58, None, None),
-                ("solve_inside_skin, 5 µm", "balun_skin_mesh5.s3p", 337192, 83, None, None),
+TABLE = RUNS + [("solve_inside_skin, 3 µm", "balun_skin_mesh3.s3p", 487182, 47, None, None),
+                ("solve_inside_skin, 5 µm", "balun_skin_mesh5.s3p", 337192, 70, None, None),
                 ("surface impedance, 2 µm", "balun_mesh2um.s3p", 331900, None, None, None)]
 
 

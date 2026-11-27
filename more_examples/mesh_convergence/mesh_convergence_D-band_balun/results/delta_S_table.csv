@@ -3,11 +3,11 @@ S11,5 um (uniform) -> 4 um (uniform),0.0241,0.3650,1.4248,0.0833
 S11,4 um (uniform) -> 3 um (uniform),0.0283,0.4305,2.2155,0.1215
 S11,3 um (uniform) -> 2 um (uniform),0.0181,0.3754,1.5472,0.0497
 S11,2 um (uniform) -> 1 um (uniform),0.0392,0.5684,4.2291,0.0166
-S11,"1 um (uniform) -> AMR (5 um start, 5 it.)",0.0230,0.3426,2.3650,0.0532
-S11,"2 um (uniform) -> 2 um, order 3",0.0465,0.6911,5.2683,0.0681
+S11,"1 um (uniform) -> AMR (5 um start, 5 it.)",0.0230,0.3428,2.3680,0.0536
+S11,"2 um (uniform) -> 2 um, order 3",0.0465,0.6911,5.2681,0.0681
 S21,5 um (uniform) -> 4 um (uniform),0.0107,0.0511,0.0477,0.0401
 S21,4 um (uniform) -> 3 um (uniform),0.0134,0.0460,0.0656,0.0655
-S21,3 um (uniform) -> 2 um (uniform),0.0115,0.0573,0.0355,0.0517
+S21,3 um (uniform) -> 2 um (uniform),0.0115,0.0572,0.0355,0.0517
 S21,2 um (uniform) -> 1 um (uniform),0.0198,0.0901,0.0706,0.1041
 S21,"1 um (uniform) -> AMR (5 um start, 5 it.)",0.0151,0.0580,0.0479,0.0889
 S21,"2 um (uniform) -> 2 um, order 3",0.0256,0.1142,0.0831,0.1326
@@ -15,5 +15,5 @@ S23,5 um (uniform) -> 4 um (uniform),0.0127,0.2577,0.1772,0.1526
 S23,4 um (uniform) -> 3 um (uniform),0.0144,0.2905,0.1940,0.1548
 S23,3 um (uniform) -> 2 um (uniform),0.0107,0.2338,0.1146,0.0099
 S23,2 um (uniform) -> 1 um (uniform),0.0198,0.4215,0.2899,0.1920
-S23,"1 um (uniform) -> AMR (5 um start, 5 it.)",0.0122,0.2688,0.1613,0.0526
+S23,"1 um (uniform) -> AMR (5 um start, 5 it.)",0.0122,0.2688,0.1612,0.0524
 S23,"2 um (uniform) -> 2 um, order 3",0.0244,0.5200,0.3390,0.1796

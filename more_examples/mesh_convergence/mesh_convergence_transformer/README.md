@@ -17,10 +17,10 @@ The findings apply to this transformer, with this stackup, in this frequency ran
 - **Solver:** AWS Palace (FEM), order 2, ABC boundaries, 100 µm margin and air around, far enough that the boundary doesn't change the result (see [`simulation_boundary`](../../simulation_boundary/README.md))
 - **Sweep:** 0–200 GHz in 1 GHz steps (adaptive frequency sweep). This report looks at 1–40 GHz, below the primary self-resonance near 48 GHz.
 - **Mesh:** `refined_cellsize` varied as described below. The Metal3 ground plane is always kept at 5 µm (`refined_cellsize_override`).
-- **Execution:** `hpz2`, 16 of 32 cores, Palace 0.19.0, models from gds2palace 0.10.7 (rerun in November 2026)
+- **Execution:** `hpz2`, 16 of 32 cores, Palace 0.20.0, models from gds2palace 0.10.7 (rerun in November 2026)
 - **Scope:** this is the bare coil pair. The real matching network adds MIM capacitors that are not in this model, so no matching or real-load result is reported, only the coil properties.
 
-**What changed with the November 2026 rerun.** The first version of this study used Palace 0.17 (steps 1–3) and 0.18.0 (step 4), gds2palace from before October 2026, and 50 µm margin with 50 µm air. The rerun moves the boundary out to 100 µm, so the absolute values changed a little (primary Q at 30 GHz, 1 µm: 12.4 instead of 12.3; L and k unchanged). The runs are 4 to 5 times faster, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026); it needs more memory. The conclusions did not change.
+**What changed with the November 2026 rerun.** The first version of this study used Palace 0.17 (steps 1–3) and 0.18.0 (step 4), gds2palace from before October 2026, and 50 µm margin with 50 µm air. The rerun moves the boundary out to 100 µm, so the absolute values changed a little (primary Q at 30 GHz, 1 µm: 12.4 instead of 12.3; L and k unchanged). The runs became 4 to 5 times faster with Palace 0.19.0, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026). The conclusions did not change. The numbers shown here are from Palace 0.20.0, solved in November 2026 on the meshes of the Palace 0.19.0 runs. The results are the same with both versions. With 0.20.0 the fixed-mesh runs take about 45% less time and 35% less memory, the AMR run about 15% less time.
 
 ## 0. Layout
 
@@ -44,9 +44,9 @@ On this scale, **inductance and coupling look identical for every mesh**, while 
 
 | Mesh | DOF | Solve time | Peak RAM |
 |---|---:|---:|---:|
-| 4 µm | 187,956 | 48 s | 3.9 GB |
-| 2 µm | 316,408 | 1m 15s | 6.1 GB |
-| 1 µm | 581,542 | 2m 28s | 9.6 GB |
+| 4 µm | 187,956 | 27 s | 2.6 GB |
+| 2 µm | 316,408 | 41 s | 3.7 GB |
+| 1 µm | 581,542 | 1m 21s | 6.0 GB |
 
 ## 2. Has it settled? The trend at 30 GHz
 
@@ -63,13 +63,13 @@ At 1 µm there are only two cells across the 2 µm traces. A plausible reason fo
 
 ## 3. Cross-check with AMR
 
-AMR started from the 2 µm mesh and ran 3 iterations, refining wherever Palace's error estimate was largest. It ended at 2.08 million DOF, 3.6× the 1 µm model. These are the open markers in the plot above.
+AMR started from the 2 µm mesh and ran 3 iterations, refining wherever Palace's error estimate was largest. It ended at 2.07 million DOF, 3.6× the 1 µm model. These are the open markers in the plot above.
 
 | | Primary L | Coupling k | Primary Q | Secondary Q | Total time | Peak RAM |
 |---|---:|---:|---:|---:|---:|---:|
-| 2 µm uniform | 0.751 nH | 0.715 | 12.24 | 11.13 | 1m 15s | 6.1 GB |
-| 1 µm uniform | 0.747 nH | 0.712 | 12.43 | 11.34 | 2m 28s | 9.6 GB |
-| AMR, 3 iterations | 0.747 nH | 0.710 | 12.91 | 11.75 | 36m | 31.5 GB |
+| 2 µm uniform | 0.751 nH | 0.715 | 12.24 | 11.13 | 41 s | 3.7 GB |
+| 1 µm uniform | 0.747 nH | 0.712 | 12.43 | 11.34 | 1m 21s | 6.0 GB |
+| AMR, 3 iterations | 0.747 nH | 0.710 | 12.91 | 11.75 | 31m | 21.3 GB |
 
 - **L and k confirm the uniform result**: AMR agrees with 1 µm within 0.3%.
 - **Q continues the upward trend**: AMR is another 4% above the 1 µm result, for both coils. This confirms what step 2 suggested. The Q of this transformer is not converged at 1 µm, and the true value is likely at least a few percent higher.
@@ -83,20 +83,20 @@ Steps 1–3 use the default surface impedance conductor model, so they show how 
 
 | Model (values at 30 GHz) | DOF | Time | Primary L | k | Primary Q | Secondary Q |
 |---|---:|---:|---:|---:|---:|---:|
-| `'solve_inside_skin'`, 1 µm (reference) | 1.45 M | 10 min | 0.753 nH | 0.710 | 9.53 | 9.21 |
-| `'solve_inside_skin'`, 2 µm | 0.67 M | 4 min | +0.2% | +0.6% | −2.6% | −3.4% |
-| `'solve_inside_skin'`, 4 µm | 0.37 M | 3 min | +0.9% | +1.6% | −4.5% | −6.1% |
-| `'solve_inside'`, 2 µm | 0.37 M | 2 min | +0.4% | +0.6% | −4.0% | −5.4% |
-| surface impedance, 1 µm | 0.58 M | 2 min | −0.8% | +0.2% | +30% | +23% |
-| surface impedance, 2 µm | 0.32 M | 1 min | −0.2% | +0.7% | +29% | +21% |
+| `'solve_inside_skin'`, 1 µm (reference) | 1.45 M | 5 min | 0.753 nH | 0.710 | 9.53 | 9.21 |
+| `'solve_inside_skin'`, 2 µm | 0.67 M | 3 min | +0.2% | +0.6% | −2.6% | −3.4% |
+| `'solve_inside_skin'`, 4 µm | 0.37 M | 2 min | +0.9% | +1.6% | −4.5% | −6.1% |
+| `'solve_inside'`, 2 µm | 0.37 M | 1 min | +0.4% | +0.6% | −4.0% | −5.4% |
+| surface impedance, 1 µm | 0.58 M | 1.3 min | −0.8% | +0.2% | +30% | +23% |
+| surface impedance, 2 µm | 0.32 M | 0.7 min | −0.2% | +0.7% | +29% | +21% |
 
 - **The surface model's Q is 21–31% too high**, much more than anything the mesh changes in steps 1–3. L and k agree within 1% for all models.
 - **All volume models agree within a few percent**, and all are slightly low in Q. `'solve_inside_skin'` at 2 µm brings the error from 4–5.5% down to 2.5–3.5%.
 
 ## Summary for this transformer
 
-- **For inductance and coupling, 2 µm is enough** (within 1% of the finest results, under 1.5 minutes).
-- **Q is the hard quantity.** Even the finest run here (AMR, 36 minutes) is still rising. Treat simulated Q at 30 GHz as a lower bound: the 2 µm mesh underestimates it by roughly 5% compared with AMR, and the true value may be higher still.
+- **For inductance and coupling, 2 µm is enough** (within 1% of the finest results, under a minute).
+- **Q is the hard quantity.** Even the finest run here (AMR, 31 minutes) is still rising. Treat simulated Q at 30 GHz as a lower bound: the 2 µm mesh underestimates it by roughly 5% compared with AMR, and the true value may be higher still.
 - **5 µm is too coarse for this geometry**: its mesh has a degenerate element and the solver stops. The cell size should not be much larger than the 2 µm trace width.
 - **For Q, the conductor model matters more than the mesh.** The default surface impedance gives 21–31% higher Q at 30 GHz than the volume models. `'solve_inside'` and `'solve_inside_skin'` at 2 µm are within 2.5–5.5% of the finest `'solve_inside_skin'` result.
 

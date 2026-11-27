@@ -45,13 +45,13 @@ REFERENCE = "balun2x1_mesh1.s4p"
 
 # solve times in minutes, from the Palace logs; AMR value is cumulative over all iterations
 SOLVE_MIN = {
-    "balun2x1_mesh5.s4p": 1 + 3 / 60,
-    "balun2x1_mesh2.s4p": 2 + 45 / 60,
-    "balun2x1_mesh1.s4p": 5 + 45 / 60,
-    "balun2x1_mesh5_order1.s4p": 14.6 / 60,
-    "balun2x1_mesh2_order1.s4p": 34.7 / 60,
-    "balun2x1_mesh1_order1.s4p": 1 + 14 / 60,
-    "balun2x1_amr2_final.s4p": 17 + 39 / 60,
+    "balun2x1_mesh5.s4p": 32.7 / 60,
+    "balun2x1_mesh2.s4p": 1 + 20 / 60,
+    "balun2x1_mesh1.s4p": 2 + 52 / 60,
+    "balun2x1_mesh5_order1.s4p": 5.1 / 60,
+    "balun2x1_mesh2_order1.s4p": 13.2 / 60,
+    "balun2x1_mesh1_order1.s4p": 26.2 / 60,
+    "balun2x1_amr2_final.s4p": 15 + 53 / 60,
 }
 
 INK = "#0b0b0b"
@@ -165,9 +165,9 @@ def plot_accuracy_vs_cost():
         style(ax)
         ax.set_title(title, loc="left", fontsize=11, color=INK)
         ax.set_xscale("log")
-        ax.set_xticks([0.2, 0.5, 1, 2, 5, 10, 20, 50])
-        ax.set_xticklabels(["0.2", "0.5", "1", "2", "5", "10", "20", "50"])
-        ax.set_xlim(0.2, 60)
+        ax.set_xticks([0.1, 0.2, 0.5, 1, 2, 5, 10, 20])
+        ax.set_xticklabels(["0.1", "0.2", "0.5", "1", "2", "5", "10", "20"])
+        ax.set_xlim(0.06, 30)
         ax.set_ylim(bottom=0)
         ax.set_xlabel("Solve time (min, log scale)", color=INK2)
         ax.axvline(SOLVE_MIN[REFERENCE], color=INK2, linewidth=1, linestyle=":")

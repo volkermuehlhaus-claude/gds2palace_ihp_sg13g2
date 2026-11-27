@@ -45,14 +45,14 @@ REFERENCE = "balun_mesh1um.s3p"
 
 # solve times in minutes, from the Palace logs of each run
 SOLVE_MIN = {
-    "balun_mesh5um.s3p": 18.8 / 60,
-    "balun_mesh4um.s3p": 22.8 / 60,
-    "balun_mesh3um.s3p": 25.4 / 60,
-    "balun_mesh2um.s3p": 37.0 / 60,
-    "balun_mesh1um.s3p": 1 + 32 / 60,
-    "balun_mesh2um_order3.s3p": 1 + 47 / 60,
+    "balun_mesh5um.s3p": 11.0 / 60,
+    "balun_mesh4um.s3p": 12.1 / 60,
+    "balun_mesh3um.s3p": 14.3 / 60,
+    "balun_mesh2um.s3p": 20.7 / 60,
+    "balun_mesh1um.s3p": 43.2 / 60,
+    "balun_mesh2um_order3.s3p": 1 + 11 / 60,
     # AMR: Palace reports elapsed time cumulatively, so the final value covers all 5 iterations
-    "balun_amr5_final.s3p": 58 + 1 / 60,
+    "balun_amr5_final.s3p": 49 + 59 / 60,
 }
 
 INK = "#0b0b0b"
@@ -181,10 +181,10 @@ def plot_accuracy_vs_cost():
             va="top")
 
     ax.set_xscale("log")
-    ax.set_xlim(0.2, 100)
+    ax.set_xlim(0.1, 100)
     ax.set_ylim(0, 0.115)
-    ax.set_xticks([0.2, 0.5, 1, 2, 5, 10, 20, 50, 100])
-    ax.set_xticklabels(["0.2", "0.5", "1", "2", "5", "10", "20", "50", "100"])
+    ax.set_xticks([0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100])
+    ax.set_xticklabels(["0.1", "0.2", "0.5", "1", "2", "5", "10", "20", "50", "100"])
     ax.set_xlabel("Solve time (min, log scale; AMR = all 5 iterations)", color=INK2)
     ax.set_ylabel("Max |ΔS| vs. 1 µm result", color=INK2)
     ax.legend(frameon=False, fontsize=9, loc="upper right", bbox_to_anchor=(1.0, 0.9))

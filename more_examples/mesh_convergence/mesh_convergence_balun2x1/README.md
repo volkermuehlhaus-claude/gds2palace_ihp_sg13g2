@@ -16,10 +16,10 @@ The findings apply to this balun, with this stackup, in this frequency range. Ot
 - **Ports:** 4 via ports (Metal1 → TopMetal2), Z0 = 50 Ω, de-embedded: 1/2 = primary pair, 3/4 = secondary pair, no center tap. The de-embedding was redone in October 2026 with the corrected `combine_extend_snp.py`, which before had put the inductance of all ports at port 1 (see `doc/CHANGES.md`, 12 October 2026); it changed L, k and Q by up to about 1.5% and |Sdd21| by about 0.03 dB, not the convergence trends.
 - **Solver:** AWS Palace (FEM), ABC boundaries, 200 µm margin and air around, far enough that the boundary doesn't change the result (see [`simulation_boundary`](../../simulation_boundary/README.md)), order 2 unless noted
 - **Sweep:** 1–50 GHz in 1 GHz steps (adaptive frequency sweep)
-- **Execution:** `hpz2`, 16 of 32 cores, Palace 0.19.0, models from gds2palace 0.10.7 (rerun in November 2026)
+- **Execution:** `hpz2`, 16 of 32 cores, Palace 0.20.0, models from gds2palace 0.10.7 (rerun in November 2026)
 - **Scope:** this is the bare balun. A real matching network would add MIM capacitors that are not in this model, so no matching or real-load result is reported.
 
-**What changed with the November 2026 rerun.** The first version of this study used Palace 0.16 (steps 1–3) and 0.18.0 (step 4), gds2palace from before October 2026, and 100 µm margin with 20 µm air. The rerun moves the boundary out to 200 µm, so the absolute values changed a little (peak primary Q at 1 µm 19.4 instead of 19.1, L 0.3% higher). The runs are about 5 times faster, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026); it needs more memory. The conclusions about the mesh did not change.
+**What changed with the November 2026 rerun.** The first version of this study used Palace 0.16 (steps 1–3) and 0.18.0 (step 4), gds2palace from before October 2026, and 100 µm margin with 20 µm air. The rerun moves the boundary out to 200 µm, so the absolute values changed a little (peak primary Q at 1 µm 19.4 instead of 19.1, L 0.3% higher). The runs became about 5 times faster with Palace 0.19.0, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026). The conclusions about the mesh did not change. The numbers shown here are from Palace 0.20.0, solved in November 2026 on the meshes of the Palace 0.19.0 runs. The results are the same with both versions. With 0.20.0 the fixed-mesh runs take about half the time and 40% less memory, the AMR run about 10% less time.
 
 ## 0. Layout
 
@@ -47,19 +47,19 @@ The step from 2 to 1 µm is much smaller than the step from 5 to 2 µm, on every
 
 | Mesh | DOF | Solve time | Peak RAM |
 |---|---:|---:|---:|
-| 5 µm | 323,980 | 1m 3s | 6.2 GB |
-| 2 µm | 860,902 | 2m 45s | 13.0 GB |
-| 1 µm | 1,757,854 | 5m 45s | 24.5 GB |
+| 5 µm | 323,980 | 33 s | 3.7 GB |
+| 2 µm | 860,902 | 1m 20s | 7.8 GB |
+| 1 µm | 1,757,854 | 2m 52s | 15.0 GB |
 
 ## 2. Cross-check with AMR
 
-AMR started from the 5 µm mesh and ran 2 refinement iterations, ending at 1.10 million DOF.
+AMR started from the 5 µm mesh and ran 2 refinement iterations, ending at 1.09 million DOF.
 
 | | Peak primary Q | \|Sdd21\| peak | Max\|ΔS\| vs. 1 µm | Total time | Peak RAM |
 |---|---:|---:|---:|---:|---:|
-| 2 µm uniform | 19.11 | −1.21 dB at 33 GHz | 0.020 | 2m 45s | 13.0 GB |
-| 1 µm uniform | 19.43 | −1.22 dB at 34 GHz | (reference) | 5m 45s | 24.5 GB |
-| AMR, 2 iterations | 18.93 | −1.22 dB at 34 GHz | 0.011 | 17m 39s | 17.1 GB |
+| 2 µm uniform | 19.11 | −1.21 dB at 33 GHz | 0.020 | 1m 20s | 7.8 GB |
+| 1 µm uniform | 19.43 | −1.22 dB at 34 GHz | (reference) | 2m 52s | 15.0 GB |
+| AMR, 2 iterations | 18.92 | −1.22 dB at 34 GHz | 0.011 | 15m 53s | 11.8 GB |
 
 - **For the S-parameters, AMR confirms the 1 µm result.** Its |Sdd21| peak is identical, and its Max|ΔS| distance to 1 µm is smaller than that of the 2 µm mesh.
 - **For Q, AMR is less accurate than the 2 µm uniform mesh.** It ends between the 2 µm and 5 µm results. AMR refines where Palace's error estimate is largest, and for this model that isn't where Q is decided.
@@ -67,13 +67,13 @@ AMR started from the 5 µm mesh and ran 2 refinement iterations, ending at 1.10 
 
 ## 3. Order 1 as a shortcut? Accuracy vs. cost
 
-FEM order 1 runs 4–5× faster than order 2 on the same mesh. We re-ran all three meshes at order 1. The chart shows every run's error against the 1 µm order-2 reference, over its solve time:
+FEM order 1 runs 6–7× faster than order 2 on the same mesh. We re-ran all three meshes at order 1. The chart shows every run's error against the 1 µm order-2 reference, over its solve time:
 
 ![Accuracy vs. solve time](results/plots/story_accuracy_vs_cost.png)
 
 - **Order 1 is far off on this balun.** At 5 µm, peak Q is 27% low and the |Sdd21| peak sits at 26 GHz instead of 34 GHz. The error shrinks with a finer mesh, but at 1 µm Q is still 11% low and the peak is at 31 GHz.
 - **Order 1 also makes the balun look better than it is.** Its |Sdd21| peak is −0.92 dB at 5 µm and −1.09 dB at 1 µm, compared with −1.22 dB for the reference.
-- **Order 2 at 5 µm is more accurate than order 1 at 1 µm**, in Q, in frequency and in Max|ΔS|, and here it is even a little faster (1.0 vs. 1.2 minutes).
+- **Order 2 at 5 µm is more accurate than order 1 at 1 µm**, in Q, in frequency and in Max|ΔS|, at about the same solve time (33 s vs. 26 s).
 
 ## 4. Conductor model: surface, solve_inside, solve_inside_skin
 
@@ -83,12 +83,12 @@ Steps 1–3 use the default surface impedance conductor model, so they show how 
 
 | Model | DOF | Time | L at 10 GHz | k at 10 GHz | Peak primary Q | Peak secondary Q | Peak \|Sdd21\| |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `'solve_inside_skin'`, 1 µm (reference) | 3.85 M | 18 min | 1.186 nH | 0.665 | 15.7 | 12.2 | −1.37 dB |
-| `'solve_inside_skin'`, 2 µm | 1.70 M | 9 min | +0.1% | +0.3% | −1.8% | −2.0% | −1.34 dB |
-| `'solve_inside_skin'`, 5 µm | 0.61 M | 3 min | +0.4% | +1.5% | −7.6% | −8.9% | −1.30 dB |
-| `'solve_inside'`, 2 µm | 1.04 M | 5 min | +0.1% | +0.3% | −5.5% | −7.2% | −1.40 dB |
-| surface impedance, 1 µm | 1.76 M | 6 min | −0.7% | +1.2% | +24% | +20% | −1.22 dB |
-| surface impedance, 2 µm | 0.86 M | 3 min | −0.6% | +1.4% | +22% | +18% | −1.21 dB |
+| `'solve_inside_skin'`, 1 µm (reference) | 3.85 M | 10 min | 1.186 nH | 0.665 | 15.7 | 12.2 | −1.37 dB |
+| `'solve_inside_skin'`, 2 µm | 1.70 M | 5 min | +0.1% | +0.3% | −1.8% | −2.0% | −1.34 dB |
+| `'solve_inside_skin'`, 5 µm | 0.61 M | 2 min | +0.4% | +1.5% | −7.6% | −8.9% | −1.30 dB |
+| `'solve_inside'`, 2 µm | 1.04 M | 2.5 min | +0.1% | +0.3% | −5.5% | −7.2% | −1.40 dB |
+| surface impedance, 1 µm | 1.76 M | 3 min | −0.7% | +1.2% | +24% | +20% | −1.22 dB |
+| surface impedance, 2 µm | 0.86 M | 1.3 min | −0.6% | +1.4% | +22% | +18% | −1.21 dB |
 
 - **The surface model's Q is about 20% too high**, and its |Sdd21| peak is 0.15 dB too optimistic. That is much more than the mesh changes in steps 1–3 (Q within 1.7% from 2 to 1 µm).
 - **The volume models at 2 µm are slightly pessimistic.** With `'solve_inside'`, Q is 5–7% low and |Sdd21| 0.03 dB low. `'solve_inside_skin'` at the same mesh brings Q within 2%, at 1.6× the unknowns.
@@ -96,7 +96,7 @@ Steps 1–3 use the default surface impedance conductor model, so they show how 
 
 ## Summary for this balun
 
-- **2 µm uniform mesh, order 2, is the working point.** Q is within 1.7%, |Sdd21| within 0.01 dB and 1 GHz of the finest result, in under 3 minutes.
+- **2 µm uniform mesh, order 2, is the working point.** Q is within 1.7%, |Sdd21| within 0.01 dB and 1 GHz of the finest result, in under 1.5 minutes.
 - **5 µm is too coarse for this geometry**, because the cell is wider than the 2 µm coupling gap. It's still usable for a first look at L and k.
 - **Don't use order 1 for this balun**, not even on a fine mesh. It shifts the response down in frequency and underestimates loss.
 - **AMR matched the S-parameters but not Q.** When Q matters, check it on a uniform mesh.

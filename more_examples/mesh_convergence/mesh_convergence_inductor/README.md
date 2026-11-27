@@ -17,9 +17,9 @@ The findings apply to this inductor, with this stackup, in this frequency range.
 - **Ports:** 2 via ports (Metal1 → TopMetal2), Z0 = 50 Ω, de-embedded (port parasitic inductance removed) in all results shown, evaluated as one differential pair. The de-embedding was redone in October 2026 with the corrected `combine_extend_snp.py`, which before had put the inductance of all ports at port 1 (see `doc/CHANGES.md`, 12 October 2026); L, Q and R of the differential pair don't change, because they only see the sum of both port inductances
 - **Solver:** AWS Palace (FEM), ABC boundaries, 100 µm margin and air around, far enough that the boundary doesn't change the result (see [`simulation_boundary`](../../simulation_boundary/README.md)), order 2 unless noted
 - **Sweep:** 0–50 GHz in 0.5 GHz steps (adaptive frequency sweep)
-- **Execution:** `hpz2`, 16 of 32 cores, Palace 0.19.0, models from gds2palace 0.10.7 (rerun in November 2026)
+- **Execution:** `hpz2`, 16 of 32 cores, Palace 0.20.0, models from gds2palace 0.10.7 (rerun in November 2026)
 
-**What changed with the November 2026 rerun.** The first version of this study used Palace 0.16 (steps 1–3) and 0.18.0 (step 4), gds2palace from before October 2026, and a 20 µm margin. The rerun moves the boundary out to 100 µm, so the absolute values changed a little (peak Q at 1 µm 22.3 instead of 21.6, L 0.3% higher). The runs are 3 to 5 times faster, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026); it needs more memory. The conclusions about the mesh did not change.
+**What changed with the November 2026 rerun.** The first version of this study used Palace 0.16 (steps 1–3) and 0.18.0 (step 4), gds2palace from before October 2026, and a 20 µm margin. The rerun moves the boundary out to 100 µm, so the absolute values changed a little (peak Q at 1 µm 22.3 instead of 21.6, L 0.3% higher). The runs became 3 to 5 times faster with Palace 0.19.0, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026). The conclusions about the mesh did not change. The numbers shown here are from Palace 0.20.0, solved in November 2026 on the meshes of the Palace 0.19.0 runs. The results are the same with both versions. With 0.20.0 the fixed-mesh runs take about half the time and 40% less memory, the AMR run about 15% less time.
 
 ## 0. Layout
 
@@ -45,9 +45,9 @@ Each refinement step closes a good part of the remaining gap, so the uniform mes
 
 | Mesh | DOF | Solve time | Peak RAM |
 |---|---:|---:|---:|
-| 5 µm | 173,650 | 14 s | 3.4 GB |
-| 2 µm | 442,812 | 47 s | 7.2 GB |
-| 1 µm | 895,030 | 1m 39s | 13.0 GB |
+| 5 µm | 173,650 | 8 s | 2.4 GB |
+| 2 µm | 442,812 | 25 s | 4.5 GB |
+| 1 µm | 895,030 | 52 s | 7.7 GB |
 
 ## 2. Is 1 µm converged? Cross-check with AMR
 
@@ -56,27 +56,27 @@ AMR starts from the 5 µm mesh and lets Palace refine wherever its own error est
 | | L at 10 GHz | Peak Q | Max\|ΔS\| vs. 1 µm |
 |---|---:|---:|---:|
 | 1 µm uniform | 0.7774 nH | 22.34 | (reference) |
-| AMR, 2 iterations | 0.7780 nH | 22.36 | 0.0016 |
+| AMR, 2 iterations | 0.7780 nH | 22.36 | 0.0017 |
 
 L and Q agree within 0.1%. Since two different refinement strategies reach the same result, we treat the 1 µm result as converged for this inductor and use it as the reference below.
 
 ## 3. Order 1 as a shortcut? Accuracy vs. cost
 
-FEM order 1 uses simpler basis functions: about 5× fewer unknowns on the same mesh, and runs 3–4× faster. We re-ran the 3, 2 and 1 µm meshes at order 1. The chart shows every run's error against the 1 µm order-2 reference, over its solve time:
+FEM order 1 uses simpler basis functions: about 5× fewer unknowns on the same mesh, and runs about 5× faster. We re-ran the 3, 2 and 1 µm meshes at order 1. The chart shows every run's error against the 1 µm order-2 reference, over its solve time:
 
 ![Accuracy vs. solve time](results/plots/story_accuracy_vs_cost.png)
 
 - **Order 1 is fast, but it is much less accurate here.** At 3 µm it underestimates L by 8% and peak Q by 18%. Refining the order-1 mesh helps (1 µm: L −5%, Q −10%), but it is still far from the order-2 results.
-- **Order 2 on a coarse mesh beats order 1 on a fine mesh.** The 5 µm order-2 run is even faster than the 1 µm order-1 run (14 s vs. 26 s), and its errors are 5× smaller for L and 40% smaller for Q.
-- **AMR reaches the reference accuracy, at about three times the cost** of simply running the 1 µm mesh (5m 14s total vs. 1m 39s, and 14.2 vs. 13.0 GB). Here it is a good cross-check, but not a shortcut.
+- **Order 2 on a coarse mesh beats order 1 on a fine mesh.** The 5 µm order-2 run is even a little faster than the 1 µm order-1 run (8 s vs. 9 s), and its errors are 5× smaller for L and 40% smaller for Q.
+- **AMR reaches the reference accuracy, at about five times the cost** of simply running the 1 µm mesh (4m 29s total vs. 52 s, and 9.6 vs. 7.7 GB). Here it is a good cross-check, but not a shortcut.
 
 | Variant | Solve time | L error at 10 GHz | Peak Q error |
 |---|---:|---:|---:|
-| 5 µm, order 2 | 14 s | −0.9% | −6.0% |
-| 1 µm, order 1 | 26 s | −5.3% | −10.2% |
-| 2 µm, order 2 | 47 s | −0.2% | −2.0% |
-| 1 µm, order 2 | 1m 39s | (reference) | (reference) |
-| AMR, 2 iterations | 5m 14s | +0.1% | +0.1% |
+| 5 µm, order 2 | 8 s | −0.9% | −6.0% |
+| 1 µm, order 1 | 9 s | −5.3% | −10.2% |
+| 2 µm, order 2 | 25 s | −0.2% | −2.0% |
+| 1 µm, order 2 | 52 s | (reference) | (reference) |
+| AMR, 2 iterations | 4m 29s | +0.1% | +0.1% |
 
 ## 4. Conductor model: surface, solve_inside, solve_inside_skin
 
@@ -98,8 +98,8 @@ Steps 1–3 use the default surface impedance conductor model, so they show how 
 
 ## Summary for this inductor
 
-- **For inductance alone, a 5 µm order-2 mesh is enough** (within 1%, 14 seconds).
-- **For Q, use 2 µm** (within 2%, under a minute) during design, and **1 µm for final numbers**. Here, 1 µm agrees with AMR within 0.1%.
+- **For inductance alone, a 5 µm order-2 mesh is enough** (within 1%, 8 seconds).
+- **For Q, use 2 µm** (within 2%, half a minute) during design, and **1 µm for final numbers**. Here, 1 µm agrees with AMR within 0.1%.
 - **Don't use order 1 for L or Q of this inductor.** Refining the mesh reduces its error, but even at 1 µm it is larger than that of a 5 µm order-2 run, which is faster.
 - **For Q, the conductor model matters more than the mesh.** The default surface impedance gives 27% higher Q than the finest `'solve_inside_skin'` run. `'solve_inside_skin'` at 3–5 µm gets within 3–5% of its finest result at a few hundred thousand unknowns.
 

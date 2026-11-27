@@ -42,15 +42,15 @@ REFERENCE = "ind_frame_mesh1.s2p"
 
 # solve times in minutes, from the Palace logs of each run
 SOLVE_MIN = {
-    "ind_frame_mesh5.s2p": 14.1 / 60,
-    "ind_frame_mesh3.s2p": 26.6 / 60,
-    "ind_frame_mesh2.s2p": 46.8 / 60,
-    "ind_frame_mesh1.s2p": 1 + 39 / 60,
-    "ind_frame_mesh3_order1.s2p": 7.7 / 60,
-    "ind_frame_mesh2_order1.s2p": 13.9 / 60,
-    "ind_frame_mesh1_order1.s2p": 25.5 / 60,
+    "ind_frame_mesh5.s2p": 7.7 / 60,
+    "ind_frame_mesh3.s2p": 14.2 / 60,
+    "ind_frame_mesh2.s2p": 25.2 / 60,
+    "ind_frame_mesh1.s2p": 52.2 / 60,
+    "ind_frame_mesh3_order1.s2p": 2.8 / 60,
+    "ind_frame_mesh2_order1.s2p": 5.2 / 60,
+    "ind_frame_mesh1_order1.s2p": 9.2 / 60,
     # AMR: cumulative over all iterations
-    "ind_frame_amr2_final.s2p": 5 + 15 / 60,
+    "ind_frame_amr2_final.s2p": 4 + 29 / 60,
 }
 
 INK = "#0b0b0b"
@@ -145,9 +145,9 @@ def plot_accuracy_vs_cost():
         style(ax)
         ax.set_title(title, loc="left", fontsize=11, color=INK)
         ax.set_xscale("log")
-        ax.set_xticks([0.1, 0.2, 0.5, 1, 2, 5, 10])
-        ax.set_xticklabels(["0.1", "0.2", "0.5", "1", "2", "5", "10"])
-        ax.set_xlim(0.1, 15)
+        ax.set_xticks([0.05, 0.1, 0.2, 0.5, 1, 2, 5])
+        ax.set_xticklabels(["0.05", "0.1", "0.2", "0.5", "1", "2", "5"])
+        ax.set_xlim(0.035, 8)
         ax.set_ylim(bottom=0)
         ax.set_xlabel("Solve time (min, log scale)", color=INK2)
         ax.axvline(SOLVE_MIN[REFERENCE], color=INK2, linewidth=1, linestyle=":")

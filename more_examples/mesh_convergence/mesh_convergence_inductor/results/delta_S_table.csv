@@ -1,13 +1,13 @@
 Param,Comparison,Max|dS| (linear),|dS_dB| at 1GHz,|dS_dB| at 25GHz,|dS_dB| at 50GHz
-S11,5 um (uniform) -> 3 um (uniform),0.0130,0.0515,0.0219,0.0097
-S11,3 um (uniform) -> 2 um (uniform),0.0056,0.0157,0.0105,0.0011
-S11,2 um (uniform) -> 1 um (uniform),0.0055,0.0244,0.0123,0.0010
-S11,"1 um (uniform) -> AMR (5 um start, 2 it.)",0.0016,0.0005,0.0005,0.0013
+S11,5 um (uniform) -> 3 um (uniform),0.0130,0.0507,0.0219,0.0097
+S11,3 um (uniform) -> 2 um (uniform),0.0056,0.0193,0.0105,0.0011
+S11,2 um (uniform) -> 1 um (uniform),0.0055,0.0213,0.0123,0.0010
+S11,"1 um (uniform) -> AMR (5 um start, 2 it.)",0.0017,0.0051,0.0002,0.0015
 S21,5 um (uniform) -> 3 um (uniform),0.0058,0.0001,0.0143,0.1154
-S21,3 um (uniform) -> 2 um (uniform),0.0019,0.0003,0.0073,0.0291
-S21,2 um (uniform) -> 1 um (uniform),0.0021,0.0002,0.0071,0.0364
-S21,"1 um (uniform) -> AMR (5 um start, 2 it.)",0.0006,0.0001,0.0010,0.0075
-S22,5 um (uniform) -> 3 um (uniform),0.0097,0.0514,0.0224,0.0094
-S22,3 um (uniform) -> 2 um (uniform),0.0035,0.0157,0.0107,0.0010
-S22,2 um (uniform) -> 1 um (uniform),0.0041,0.0244,0.0126,0.0009
-S22,"1 um (uniform) -> AMR (5 um start, 2 it.)",0.0009,0.0006,0.0005,0.0012
+S21,3 um (uniform) -> 2 um (uniform),0.0019,0.0002,0.0073,0.0291
+S21,2 um (uniform) -> 1 um (uniform),0.0021,0.0001,0.0071,0.0364
+S21,"1 um (uniform) -> AMR (5 um start, 2 it.)",0.0007,0.0002,0.0006,0.0090
+S22,5 um (uniform) -> 3 um (uniform),0.0097,0.0508,0.0224,0.0094
+S22,3 um (uniform) -> 2 um (uniform),0.0035,0.0195,0.0107,0.0010
+S22,2 um (uniform) -> 1 um (uniform),0.0041,0.0212,0.0126,0.0009
+S22,"1 um (uniform) -> AMR (5 um start, 2 it.)",0.0008,0.0054,0.0003,0.0014

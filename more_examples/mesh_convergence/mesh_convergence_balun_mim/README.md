@@ -17,9 +17,9 @@ The findings apply to this balun, with this stackup, in this frequency range. Ot
 - **Solver:** AWS Palace (FEM), order 2, ABC boundaries, 100 µm margin + 20 µm air
 - **Sweep:** 17–22 GHz in 0.1 GHz steps (adaptive frequency sweep)
 - **Mesh:** `refined_cellsize` varied as described below. Metal3 is always kept at 5 µm (`refined_cellsize_override`), and via arrays are merged identically in all runs.
-- **Execution:** `hpz2`, 16 cores, Palace 0.19.0, models from gds2palace 0.10.7 (rerun in November 2026)
+- **Execution:** `hpz2`, 16 cores, Palace 0.20.0, models from gds2palace 0.10.7 (rerun in November 2026)
 
-**What changed with the November 2026 rerun.** The first version of this study used Palace 0.16 (steps 1–3) and 0.18.0 (step 4), with gds2palace from before October 2026. The results changed by 0.02 dB or less in loss and 0.1 dB in match. The runs are 3 to 4 times faster, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026). It needs more memory.
+**What changed with the November 2026 rerun.** The first version of this study used Palace 0.16 (steps 1–3) and 0.18.0 (step 4), with gds2palace from before October 2026. The results changed by 0.02 dB or less in loss and 0.1 dB in match. The runs became 3 to 4 times faster with Palace 0.19.0, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026). The numbers shown here are from Palace 0.20.0, solved in November 2026 on the meshes of the Palace 0.19.0 runs. The results are the same with both versions. With 0.20.0 the fixed-mesh runs take 30 to 50% less time and 40% less memory. The AMR run takes as long as before, with a third less memory.
 
 ## 0. Layout
 
@@ -47,9 +47,9 @@ We ran the model at `refined_cellsize` = 3, 2 and 1 µm, all at FEM order 2. The
 
 | Mesh | DOF | Solve time | Peak RAM |
 |---|---:|---:|---:|
-| 3 µm | 704,970 | 2m 25s | 10.8 GB |
-| 2 µm | 958,742 | 3m 1s | 13.9 GB |
-| 1 µm | 2,089,338 | 7m 42s | 27.9 GB |
+| 3 µm | 704,970 | 1m 44s | 6.6 GB |
+| 2 µm | 958,742 | 2m 8s | 8.5 GB |
+| 1 µm | 2,089,338 | 5m 23s | 16.9 GB |
 
 ## 2. Cross-check with AMR
 
@@ -57,14 +57,14 @@ AMR started from the 2 µm mesh and ran 2 refinement iterations, ending at 3.2 m
 
 | | Max\|ΔS\| vs. AMR | Worst input match | Total time | Peak RAM |
 |---|---:|---:|---:|---:|
-| 3 µm | 0.034 | −15.4 dB | 2m 25s | 10.8 GB |
-| 2 µm | 0.024 | −15.9 dB | 3m 1s | 13.9 GB |
-| 1 µm | 0.004 | −17.0 dB | 7m 42s | 27.9 GB |
-| AMR, 2 iterations | (reference) | −16.9 dB | 1h 29m | 43.7 GB |
+| 3 µm | 0.034 | −15.4 dB | 1m 44s | 6.6 GB |
+| 2 µm | 0.024 | −15.9 dB | 2m 8s | 8.5 GB |
+| 1 µm | 0.004 | −17.0 dB | 5m 23s | 16.9 GB |
+| AMR, 2 iterations | (reference) | −16.9 dB | 1h 29m | 29.2 GB |
 
 (Max|ΔS| is taken over the mixed-mode parameters Sss11, Sds21 and Sdd22 at the true system impedances.)
 
-The 1 µm uniform mesh and AMR agree within Max|ΔS| = 0.004, so we consider 1 µm converged for this balun. AMR adds a useful confirmation, but at 11× the time of the 1 µm run it doesn't change the answer. AMR's insertion loss sits 0.01–0.02 dB below the 1 µm curve, which is negligible for design.
+The 1 µm uniform mesh and AMR agree within Max|ΔS| = 0.004, so we consider 1 µm converged for this balun. AMR adds a useful confirmation, but at 16× the time of the 1 µm run it doesn't change the answer. AMR's insertion loss sits 0.01–0.02 dB below the 1 µm curve, which is negligible for design.
 
 ## 3. Side check: one MIM capacitor vs. its nominal value
 
@@ -87,12 +87,12 @@ Steps 1–3 use the default surface impedance conductor model, so they show how 
 
 | Model | DOF | Time | Insertion loss, 17–22 GHz | Largest IL difference | Worst \|Sss11\| | Match null |
 |---|---:|---:|---:|---:|---:|---:|
-| `'solve_inside_skin'`, 1 µm (reference) | 3.91 M | 16 min | 1.18–1.27 dB | | −17.7 dB | 18.6 GHz |
-| `'solve_inside_skin'`, 2 µm | 1.67 M | 6 min | 1.21–1.32 dB | +0.05 dB | −16.5 dB | 18.2 GHz |
-| `'solve_inside_skin'`, 3 µm | 1.16 M | 4 min | 1.22–1.35 dB | +0.08 dB | −16.0 dB | 18.1 GHz |
-| `'solve_inside'`, 2 µm | 1.16 M | 3 min | 1.24–1.36 dB | +0.09 dB | −16.3 dB | 18.2 GHz |
-| surface impedance, 1 µm | 2.09 M | 8 min | 1.16–1.25 dB | −0.02 dB | −17.0 dB | 18.4 GHz |
-| surface impedance, 2 µm | 0.96 M | 3 min | 1.17–1.29 dB | −0.02 dB | −15.9 dB | 18.1 GHz |
+| `'solve_inside_skin'`, 1 µm (reference) | 3.91 M | 8 min | 1.18–1.27 dB | | −17.7 dB | 18.6 GHz |
+| `'solve_inside_skin'`, 2 µm | 1.67 M | 3 min | 1.21–1.32 dB | +0.05 dB | −16.5 dB | 18.2 GHz |
+| `'solve_inside_skin'`, 3 µm | 1.16 M | 2 min | 1.22–1.35 dB | +0.08 dB | −16.0 dB | 18.1 GHz |
+| `'solve_inside'`, 2 µm | 1.16 M | 2 min | 1.24–1.36 dB | +0.09 dB | −16.3 dB | 18.2 GHz |
+| surface impedance, 1 µm | 2.09 M | 5 min | 1.16–1.25 dB | −0.02 dB | −17.0 dB | 18.4 GHz |
+| surface impedance, 2 µm | 0.96 M | 2 min | 1.17–1.29 dB | −0.02 dB | −15.9 dB | 18.1 GHz |
 
 - **The surface model gets the loss right here, but by cancellation.** It has two errors that pull in opposite directions. The thick TopMetal coils get too little loss, as in the other studies of this series. The thin layers, above all the MIM capacitor plates, get too much: the plate current flows mainly on the face toward the dielectric, but the surface model puts the full thickness behind each face, which can double the loss of such a plate (see "Palace's External option" in the user's guide). On this balun, the two errors happen to cancel within 0.02 dB.
 - **The volume models at 2–3 µm are slightly pessimistic**, by 0.05–0.09 dB. `'solve_inside_skin'` brings the 2 µm result about halfway to the reference.
@@ -101,8 +101,8 @@ Steps 1–3 use the default surface impedance conductor model, so they show how 
 ## Summary for this balun
 
 - **Loss and balance are insensitive to the mesh** in this study. Even 3 µm predicts them within about 0.06 dB and 0.4° of the finest result.
-- **1 µm is needed for the final match numbers.** It agrees with AMR, while 2 µm is about 1 dB pessimistic on the worst-case match. For design iterations, 2 µm (3 minutes) gets everything else right.
-- **AMR confirms the 1 µm result**, at 11× its cost.
+- **1 µm is needed for the final match numbers.** It agrees with AMR, while 2 µm is about 1 dB pessimistic on the worst-case match. For design iterations, 2 µm (2 minutes) gets everything else right.
+- **AMR confirms the 1 µm result**, at 16× its cost.
 - **Expect simulated MIM capacitance to come out a few percent above nominal** in this setup. Part of that is mesh, part is the port connection.
 - **The default surface impedance gets the loss right here only because two errors cancel.** The volume models at 2 µm are within 0.1 dB, on the pessimistic side.
 

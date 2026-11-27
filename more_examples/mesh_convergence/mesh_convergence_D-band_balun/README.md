@@ -18,9 +18,9 @@ The findings apply to this balun, with this stackup, in this frequency range. Ot
 - **Solver:** AWS Palace (FEM), ABC boundaries, 50 µm air margin, order 2 unless noted
 - **Sweep:** 100–200 GHz in 1 GHz steps (adaptive frequency sweep)
 - **Mesh:** `refined_cellsize` varied as described below. Metal3 is a wide ground plane and is always kept at 5 µm (`refined_cellsize_override`).
-- **Execution:** `hpz2`, 16 of 32 cores, Palace 0.19.0, models from gds2palace 0.10.7 (rerun in November 2026)
+- **Execution:** `hpz2`, 16 of 32 cores, Palace 0.20.0, models from gds2palace 0.10.7 (rerun in November 2026)
 
-**What changed with the November 2026 rerun.** The first version of this study used Palace 0.17 (steps 1–3) and 0.18.0 (step 4), with gds2palace from before October 2026. The results hardly changed: the S11 null of the 5 µm mesh moved by 1 GHz, and the in-band figures by a few hundredths of a dB. With 50 µm air around the balun, the absorbing boundary fixed in Palace 0.19 is far enough away not to matter here. The runs are 4 to 5 times faster, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026). It needs more memory.
+**What changed with the November 2026 rerun.** The first version of this study used Palace 0.17 (steps 1–3) and 0.18.0 (step 4), with gds2palace from before October 2026. The results hardly changed: the S11 null of the 5 µm mesh moved by 1 GHz, and the in-band figures by a few hundredths of a dB. With 50 µm air around the balun, the absorbing boundary fixed in Palace 0.19 is far enough away not to matter here. The runs became 4 to 5 times faster with Palace 0.19.0, because gds2palace now sets Palace's complex coarse solve by default (since 30 September 2026). The numbers shown here are from Palace 0.20.0, solved in November 2026 on the meshes of the Palace 0.19.0 runs. The results are the same with both versions. With 0.20.0 the fixed-mesh runs take about half the time and 40% less memory, the AMR run about 15% less time.
 
 ## 0. Layout
 
@@ -53,9 +53,9 @@ Cost stays moderate across this sweep:
 
 | Mesh | DOF | Solve time | Peak RAM |
 |---|---:|---:|---:|
-| 5 µm | 176,660 | 19 s | 3.5 GB |
-| 2 µm | 331,900 | 37 s | 5.7 GB |
-| 1 µm | 678,946 | 1m 32s | 9.9 GB |
+| 5 µm | 176,660 | 11 s | 2.3 GB |
+| 2 µm | 331,900 | 21 s | 3.3 GB |
+| 1 µm | 678,946 | 43 s | 5.8 GB |
 
 ## 2. Is 1 µm converged? Two independent cross-checks
 
@@ -84,15 +84,15 @@ Now we can put every run on one chart. The vertical axis shows how far each run 
 
 | Variant | DOF | Solve time | Peak RAM | Max\|ΔS\| vs. 1 µm |
 |---|---:|---:|---:|---:|
-| 2 µm, order 2 | 331,900 | 37 s | 5.7 GB | 0.039 |
-| 1 µm, order 2 | 678,946 | 1m 32s | 9.9 GB | (reference) |
-| 2 µm, order 3 | 944,910 | 1m 47s | 8.1 GB | 0.009 |
-| AMR, 5 iterations | 4,531,352 (final) | 58m (all iterations) | 60 GB | 0.023 |
+| 2 µm, order 2 | 331,900 | 21 s | 3.3 GB | 0.039 |
+| 1 µm, order 2 | 678,946 | 43 s | 5.8 GB | (reference) |
+| 2 µm, order 3 | 944,910 | 1m 11s | 5.6 GB | 0.009 |
+| AMR, 5 iterations | 4,531,046 (final) | 50m (all iterations) | 42 GB | 0.023 |
 
 For this balun:
 
-- **1 µm order 2 and 2 µm order 3 give practically the same answer, at about the same cost** (1m 32s vs. 1m 47s). Order 3 needs a little less memory (8.1 vs. 9.9 GB).
-- **AMR reaches the same answer, at about 40× the time and 6× the memory** of the 1 µm run. The last iterations kept refining after the S-parameters had stopped changing much. For this model, it didn't pay off.
+- **1 µm order 2 and 2 µm order 3 give practically the same answer.** Order 3 takes longer here (1m 11s vs. 43 s) and needs about the same memory (5.6 vs. 5.8 GB).
+- **AMR reaches the same answer, at about 70× the time and 7× the memory** of the 1 µm run. The last iterations kept refining after the S-parameters had stopped changing much. For this model, it didn't pay off.
 
 ## 4. Conductor model: surface, solve_inside, solve_inside_skin
 
@@ -102,22 +102,22 @@ Steps 1–3 use the default surface impedance conductor model. Here the same bal
 
 | Model | DOF | GMRES iterations per solve | Insertion loss in band | S11 null |
 |---|---:|---:|---:|---:|
-| `'solve_inside_skin'`, 1 µm (reference) | 1.73 M | 31 | 1.06–1.21 dB | 144 GHz |
-| `'solve_inside_skin'`, 2 µm | 0.71 M | 45 | 1.05–1.22 dB | 140 GHz |
-| `'solve_inside_skin'`, 3 µm | 0.49 M | 58 | 1.08–1.27 dB | 137 GHz |
-| `'solve_inside_skin'`, 5 µm | 0.34 M | 83 | 1.17–1.38 dB | 130 GHz |
-| `'solve_inside'`, 2 µm | 0.40 M | 37 | 1.19–1.36 dB | 137 GHz |
+| `'solve_inside_skin'`, 1 µm (reference) | 1.73 M | 26 | 1.06–1.21 dB | 144 GHz |
+| `'solve_inside_skin'`, 2 µm | 0.71 M | 37 | 1.05–1.22 dB | 140 GHz |
+| `'solve_inside_skin'`, 3 µm | 0.49 M | 47 | 1.08–1.27 dB | 137 GHz |
+| `'solve_inside_skin'`, 5 µm | 0.34 M | 70 | 1.18–1.39 dB | 130 GHz |
+| `'solve_inside'`, 2 µm | 0.40 M | 30 | 1.19–1.36 dB | 137 GHz |
 | surface impedance, 1 µm | 0.68 M | | 0.96–1.08 dB | 146 GHz |
 | surface impedance, 2 µm | 0.33 M | | 1.00–1.15 dB | 141 GHz |
 
 - **For this balun, the mesh matters more than the conductor model.** With every conductor model, the response moves up by 3–7 GHz per refinement step, as in step 1. The 2 µm coupling gap sets the mesh, and skin layers don't change that. Amplitude and phase balance agree within about 0.1 dB and 1° between the models at the same mesh.
 - **The conductor model shifts the loss by about 0.1–0.15 dB.** `'solve_inside'` is about 0.15 dB too lossy at 2 µm, because the current near the conductor surface is under-resolved at these frequencies. `'solve_inside_skin'` at 2 µm is within 0.02 dB of the reference. The surface impedance model is about 0.1 dB more optimistic than the reference.
-- **Cost:** skin layers nearly double the unknowns at 2 µm (0.71 M instead of 0.40 M) and need more solver iterations per frequency (45 instead of 37), more so on coarse meshes (83 at 5 µm), where the thin layers make flat cells.
+- **Cost:** skin layers nearly double the unknowns at 2 µm (0.71 M instead of 0.40 M) and need more solver iterations per frequency (37 instead of 30), more so on coarse meshes (70 at 5 µm), where the thin layers make flat cells.
 
 ## Summary for this balun
 
-- **2 µm uniform mesh, order 2, is a good working point for design iterations.** It gets amplitude and phase balance right and finishes in under a minute. Its main error is a frequency shift of the response of about 5 GHz (S11 null at 141 GHz instead of 146 GHz), which makes insertion loss look up to about 0.07 dB worse in the target band.
-- **For final numbers, run 1 µm once** (about 1.5 minutes here). This moves the result into the range where three independent methods agree.
+- **2 µm uniform mesh, order 2, is a good working point for design iterations.** It gets amplitude and phase balance right and finishes in about 20 seconds. Its main error is a frequency shift of the response of about 5 GHz (S11 null at 141 GHz instead of 146 GHz), which makes insertion loss look up to about 0.07 dB worse in the target band.
+- **For final numbers, run 1 µm once** (under a minute here). This moves the result into the range where three independent methods agree.
 - **Mesh size mostly shifts this balun's response in frequency rather than changing its balance.** That is plausibly because the 2 µm coupling gap is under-resolved at coarse settings, but this study doesn't prove the cause.
 - **The conductor model shifts the insertion loss by about 0.1 dB.** `'solve_inside_skin'` at 2 µm is the accurate choice for loss.
 
@@ -129,7 +129,7 @@ All runs above use a planar stackup, where TopMetal2 is buried in a flat block o
 
 ## Follow-up: AMR settings
 
-The follow-up study [amr_conformal](amr_conformal/README.md) reruns AMR on this balun with conformal refinement, smaller `UpdateFraction` values, and AMR at 150 GHz only followed by one full sweep on that mesh. Conformal refinement gave the same accuracy as the default at the same number of unknowns. AMR at 150 GHz gave a mesh that holds over the whole 100–200 GHz band and reached the converged answer in about 60 % of the time of full-band AMR. That study was not rerun with Palace 0.19; its times are from the earlier versions.
+The follow-up study [amr_conformal](amr_conformal/README.md) reruns AMR on this balun with conformal refinement, smaller `UpdateFraction` values, and AMR at 150 GHz only followed by one full sweep on that mesh. Conformal refinement gave the same accuracy as the default at the same number of unknowns. AMR at 150 GHz gave a mesh that holds over the whole 100–200 GHz band and reached the converged answer in about 60 % of the time of full-band AMR. That study was not rerun with Palace 0.19 or 0.20; its times are from the earlier versions.
 
 ## Files
 
