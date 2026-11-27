@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600" role="img"
+     font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <rect x="0.5" y="0.5" width="899" height="599" fill="#ffffff" stroke="#dfe3e8"/>
+  <text x="30" y="34" font-size="17" font-weight="600" fill="#1f2933">File 05: a die in mold compound on a laminate</text>
+  <text x="30" y="56" font-size="12.5" fill="#5b6570">Heights to scale, widths schematic. Mold and Die overlap: the die, with the higher Priority, keeps the overlap.</text>
+
+  <!-- z axis -->
+  <g font-size="12" fill="#5b6570" text-anchor="end">
+    <text x="128" y="104">400 µm</text>
+    <text x="128" y="264">200 µm</text>
+    <text x="128" y="424">0</text>
+    <text x="128" y="504">−100 µm</text>
+  </g>
+  <g stroke="#9aa3ad" stroke-width="1">
+    <path d="M 134 100 H 146 M 134 260 H 146 M 134 420 H 146 M 134 500 H 146"/>
+  </g>
+
+  <!-- Mold: 0 .. 400, the whole width, Priority -1 -->
+  <rect x="150" y="100" width="480" height="320" fill="#e6e6e6" stroke="#2f3338" stroke-width="1.2"/>
+  <text x="162" y="124" font-size="14" font-weight="600" fill="#1f2933">Mold</text>
+
+  <!-- Die: 0 .. 200, its own Boundary, keeps the overlap -->
+  <rect x="270" y="260" width="240" height="160" fill="#cfeff6" stroke="#2f3338" stroke-width="1.2"/>
+  <text x="282" y="350" font-size="14" font-weight="600" fill="#1f2933">Die</text>
+
+  <!-- Hotspot: the top 5 um of the die, drawn with a minimum height -->
+  <rect x="280" y="262" width="220" height="20" fill="#f4d0d0" stroke="#2f3338" stroke-width="1"/>
+  <text x="290" y="276" font-size="12" fill="#1f2933">Hotspot (310)</text>
+  <text x="494" y="276" font-size="11" fill="#7a7f86" text-anchor="end">top 5 µm of the die</text>
+
+  <!-- Laminate: -100 .. 0 -->
+  <rect x="150" y="420" width="480" height="80" fill="#dfeccc" stroke="#2f3338" stroke-width="1.2"/>
+  <text x="162" y="465" font-size="14" font-weight="600" fill="#1f2933">Laminate</text>
+
+  <!-- BOTTOM sheet -->
+  <path d="M 160 500 H 620" stroke="#3b4a8c" stroke-width="4"/>
+  <text x="390" y="522" font-size="12" fill="#1f2933" text-anchor="middle">BOTTOM (311): the constant temperature is set here</text>
+
+  <!-- right column: what the preview prints per dielectric -->
+  <g font-size="12.5" fill="#1f2933">
+    <text x="650" y="120">Mold</text>
+    <text x="650" y="137" fill="#5b6570">κ = 1.0 W/mK · 400 µm</text>
+    <text x="650" y="154" fill="#9a5b00">Priority −1: fills what the die leaves</text>
+
+    <text x="650" y="330">Die (silicon)</text>
+    <text x="650" y="347" fill="#5b6570">κ = table · 200 µm</text>
+    <text x="650" y="364" fill="#9a5b00">Priority 0: keeps the overlap</text>
+
+    <text x="650" y="452">Laminate</text>
+    <text x="650" y="469" fill="#5b6570">κ = 1.0 lateral, 0.3 vertical · 100 µm</text>
+  </g>
+  <g stroke="#b8bec6" stroke-width="1" fill="none">
+    <path d="M 632 116 H 644 M 512 326 H 644 M 632 448 H 644"/>
+  </g>
+
+  <!-- note on the widths -->
+  <g font-size="12" fill="#5b6570">
+    <path d="M 150 548 H 630" stroke="#9aa3ad" stroke-width="1"/>
+    <path d="M 150 543 V 553 M 630 543 V 553" stroke="#9aa3ad" stroke-width="1"/>
+    <text x="390" y="568" text-anchor="middle">Boundary layer 301 (mold, laminate)</text>
+    <path d="M 270 578 H 510" stroke="#9aa3ad" stroke-width="1"/>
+    <path d="M 270 573 V 583 M 510 573 V 583" stroke="#9aa3ad" stroke-width="1"/>
+    <text x="520" y="582">Boundary layer 302 (die): width not to scale</text>
+  </g>
+</svg>

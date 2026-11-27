@@ -209,7 +209,11 @@ an XML file drift apart.
 
 File 05 demonstrated schemaVersion 3.2 and is a different stackup than files 01–04: a silicon die in mold compound on a
 package laminate, for an Elmer thermal model. Its layout is
-[`layout/05_die_in_mold.gds`](layout/05_die_in_mold.gds). It shows the features of `schemaVersion="3.2"`:
+[`layout/05_die_in_mold.gds`](layout/05_die_in_mold.gds).
+
+![File 05: the die inside the mold compound, on the laminate; heights to scale, widths schematic](png/sketch_C_die_in_mold.svg)
+
+It shows the features of `schemaVersion="3.2"`:
 
 - **Priority.** The `Mold` box (GDS boundary layer 301, the package outline) and the `Die`
   box (boundary layer 302) overlap. `Mold` has `Priority="-1"`, so the die keeps the overlap:

@@ -22,9 +22,6 @@
 +through this package's own stackup_writer.load_stackup_tree(), which preserves
 +XML comments, and only Variable/Material/Dielectric/Layer/Substrate/DerivedLayer
 @@
--    QSyntaxHighlighter, QTextCharFormat, QFont, QShortcut,
-+    QSyntaxHighlighter, QTextCharFormat, QFont,
-@@
 -from gds2palace import stackup_reader
 +from gds2openEMS import stackup_reader
 @@
@@ -74,12 +71,12 @@
 -        if legend_widget is not None:
 -            layout.addWidget(legend_widget)
 @@
--
 -        # Ctrl+C copies the stackup cross-section (not the legend) to the
 -        # clipboard as an image - window-scoped (default QShortcut context) so
 -        # it fires regardless of which child widget currently has focus
--        QShortcut(QKeySequence.Copy, self).activated.connect(
--            lambda: QApplication.clipboard().setPixmap(vector_widget.grab()))
++        # Ctrl+C copies the stackup cross-section to the clipboard as an image -
++        # window-scoped (default QShortcut context) so it fires regardless of which
++        # child widget currently has focus
 @@
 -        self.setWindowTitle("Stackup Editor")
 +        self.setWindowTitle("openEMS Stackup Editor")
@@ -177,22 +174,13 @@
 -            return False
 -        return ET.tostring(self.tree.getroot(), encoding="unicode") != self._saved_snapshot
 @@
--           matching slab in the preview. A deselected table (row < 0) clears the
 -           preview selection too, so listeners outside this editor (e.g. Layout
 -           Preview's cross-window highlight) see the clear as well."""
-+           matching slab in the preview."""
++           preview selection too."""
 @@
--        else:
--            self.vector_widget.scene().clearSelection()
-@@
--           metal/via/sheet box in the preview. A deselected table (row < 0) clears
 -           the preview selection too, so listeners outside this editor (e.g.
 -           Layout Preview's cross-window highlight) see the clear as well."""
-+           metal/via/sheet box in the preview."""
-@@
--        else:
--            self.vector_widget.scene().clearSelection()
-+        self.vector_widget.update()
++           the preview selection too."""
 @@
 -        app_name = getattr(self.MainWindow, "APP_NAME", "setupEM")
 +        app_name = getattr(self.MainWindow, "APP_NAME", "openEMS Stackup Editor")
@@ -222,6 +210,16 @@
 -    def stackup_metal_color(self, material):
 -        return None  # no override - compute_stackup_layout()'s default type-based color
 @@
++def _package_version():
++    """Version of the gds2openEMS package this editor belongs to."""
++    try:
++        import gds2openEMS
++        return gds2openEMS.__version__
++    except Exception:       # noqa: BLE001 - the version is only shown
++        return "unknown"
++
++
+@@
 -    """Run the Stackup Editor as a standalone application. Not how setupEM/setupThermal
 -       normally open it (Tools > Edit Stackup XML..., with the real app's MainWindow) - this
 -       is for editing/inspecting a stackup file on its own, with no gds2palace model/
@@ -231,12 +229,8 @@
 +       gds2openEMS model/simulation setup involved. Preview coloring/labeling uses
 +       the permittivity/sheet-resistance-based defaults from editor_common.py (see
 @@
--    # arguments first: --help, --version and a wrong argument need no display
--    parser = argparse.ArgumentParser(prog="stackupEditor", description="Standalone stackup XML editor")
--    parser.add_argument("xmlfile", nargs="?", default=None, help="stackup XML file to open")
 -    add_version_argument(parser)
--    args = parser.parse_args()
--
++    parser.add_argument("--version", action="version", version=f"%(prog)s (gds2openEMS {_package_version()})")
 @@
 -    # Pin a light color scheme so the explicit light backgrounds set on
 -    # QLineEdit/QComboBox fields elsewhere aren't fighting an inherited dark
@@ -252,8 +246,3 @@
 -        # on Windows looks visibly different (fonts/widget chrome) from the full app
 +        # without this, Qt's default style on Windows looks visibly different
 +        # (fonts/widget chrome) from the platform-native style
-@@
-+
-+    parser = argparse.ArgumentParser(description="Standalone stackup XML editor")
-+    parser.add_argument("xmlfile", nargs="?", default=None, help="stackup XML file to open")
-+    args = parser.parse_args()
