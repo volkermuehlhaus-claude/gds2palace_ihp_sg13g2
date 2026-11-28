@@ -18,7 +18,7 @@
 
 # Extract objects from layers in GDSII file
 
-__version__ = "1.3.4"
+__version__ = "1.3.5"
 
 import gdstk
 import numpy as np
@@ -26,15 +26,55 @@ import os
 from shapely import STRtree, unary_union
 
 from .util_stackup_reader import layer_text, split_layer_id
+from shapely.geometry import LineString
 from shapely.geometry import Polygon as ShapelyPolygon
+from shapely.ops import split
 from shapely.validation import explain_validity, make_valid
 
 
 
+def _signed_area (points):
+  x, y = points[:, 0], points[:, 1]
+  return 0.5 * float(np.sum(x * np.roll(y, -1) - np.roll(x, -1) * y))
+
+
+def _hole_free_pieces (shape):
+  """The polygons of a shapely geometry, each cut until it has no hole (a vertical cut through every hole)."""
+  todo = [g for g in getattr(shape, 'geoms', [shape]) if g.geom_type == 'Polygon' and not g.is_empty]
+  done = []
+  while todo:
+    polygon = todo.pop()
+    if not polygon.interiors:
+      done.append(polygon)
+      continue
+    x = polygon.interiors[0].centroid.x
+    _, ymin, _, ymax = polygon.bounds
+    todo += [g for g in split(polygon, LineString([(x, ymin - 1), (x, ymax + 1)])).geoms if g.area > 0]
+  return done
+
+
+def _with_holes_cut (polygons):
+  """A gdstk boolean or offset result, with every hole cut out of its shape. gdstk returns every outline
+  counter-clockwise and normally links a hole to its outline (a keyhole polygon), but in some unions of many shapes
+  (gdstk 1.0.2) it returns the hole as a separate polygon that only runs clockwise. GDSII has no holes and
+  fracture() makes it solid: a cut-out of a metal plane came out filled. Such a result is rebuilt with shapely,
+  largest shape first (outlines added, holes cut, so an island inside a hole stays), as polygons without holes.
+  The same fix as gds_prepare_for_EM 1.9.1."""
+  signed = [_signed_area(p.points) for p in polygons]
+  if all(a >= 0 for a in signed):
+    return polygons
+  region = None
+  for p, a in sorted(zip(polygons, signed), key=lambda pa: -abs(pa[1])):
+    shape = unary_union([ShapelyPolygon(q.points).buffer(0) for q in p.fracture(max_points=199) if len(q.points) >= 3])
+    region = shape if region is None else (region.union(shape) if a > 0 else region.difference(shape))
+  return [gdstk.Polygon(np.array(g.exterior.coords[:-1])) for g in _hole_free_pieces(region)]
+
+
 def _fracture (polygons, max_points=199):
   """Point arrays of gdstk polygons, each fractured into pieces of at most max_points vertices: what gdspy's
-  booleans and offsets returned with their max_points (gdspy was used before gdstk)."""
-  return [q.points for p in polygons for q in p.fracture(max_points=max_points)]
+  booleans and offsets returned with their max_points (gdspy was used before gdstk). A hole that gdstk returned
+  as a separate polygon is cut out first, see _with_holes_cut()."""
+  return [q.points for p in _with_holes_cut(polygons) for q in p.fracture(max_points=max_points)]
 
 
 def select_design_cell (library, cellname=""):

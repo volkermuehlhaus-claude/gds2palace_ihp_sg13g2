@@ -28,6 +28,7 @@ Each dated section below lists the new features first, then changed behaviour, t
 
 ### Fixes
 
+- Where shapes are merged when the layout is read (via arrays with `merge_polygon_size`, derived layers), a hole of the merged shape could come out filled: the geometry library (gdstk 1.0.2) returned it as a separate polygon in some unions of many shapes, and that polygon became metal. Found on a Metal1 plane with a cut-out around transistors. The same fix is in gds2openEMS and gds_prepare_for_EM 1.9.1.
 - Thermal models with the iterative solver (the default): the solver now stops at a tolerance of 1e-10 instead of 1e-7. With 1e-7, the heat flow through the constant-temperature boundaries could add up to a few percent less than the input power (0.4 % on an interposer model with the normal mesh), and the temperatures were slightly low. The run time is the same.
 
 ## 27 November-2026
