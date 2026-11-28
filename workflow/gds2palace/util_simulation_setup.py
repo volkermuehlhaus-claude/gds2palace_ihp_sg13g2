@@ -65,7 +65,6 @@ import json
 import types
 
 from . import util_elmer
-from . import util_extruded_mesh
 from . import util_calibration
 from .util_stackup_reader import PEC_MATERIAL_NAME, thermal_conductivity_spec
 
@@ -1550,8 +1549,8 @@ def _material_from_layer_or_dielectric_name (layername, metals_list, materials_l
 def _elmer_thermal_config (physical_groups_3D, physical_groups_2D, metals_list, materials_list, dielectrics_list,
                            thermal_objects):
     """Elmer thermal model: materials, bodies, heat sources (body forces) and constant-temperature boundaries from the
-    physical groups of the mesh, for util_elmer.write_elmer_thermal_file(). The same for both meshes (tetrahedral
-    and extruded). Bodies are identified by physical group name (Use Mesh Names).
+    physical groups of the mesh, for util_elmer.write_elmer_thermal_file(). Bodies are identified by physical group
+    name (Use Mesh Names).
 
     Returns:
         Elmer_materials, Elmer_bodies, Elmer_body_forces, Elmer_thermal_boundaryconditions
@@ -1716,35 +1715,6 @@ def _write_elmer_thermal_model (sim_path, unit, physical_groups_3D, physical_gro
                                         heat_flux_output=heat_flux_output)
     with open(os.path.join(sim_path, 'ELMERSOLVER_STARTINFO'), "w") as f:
         f.write('case.sif\n')
-
-
-def _create_extruded_thermal_model (settings, allpolygons, metals_list, materials_list, dielectrics_list,
-                                    thermal_objects, margin, unit, refined_cellsize, refined_cellsize_override_dict,
-                                    max_cellsize, fill_factor_correction, iterative, heat_flux_output, sim_path,
-                                    msh_name, no_gui, preview_only, ELMER_MPI_THREADS):
-    """Elmer thermal model with the extruded mesh (settings['thermal_mesh'] = 'extruded', see util_extruded_mesh.py),
-    in the gmsh model that create_model() has started. Writes the mesh, case.sif and the Elmer mesh folder."""
-    grid = settings.get('thermal_mesh_grid', 0.1e-6 / unit)
-    print(f'Thermal mesh: extruded (outlines snapped to a {grid:g} grid)')
-    if settings.get('substrate_refinement', False):
-        print("Note: settings['substrate_refinement'] has no effect with the extruded thermal mesh")
-    physical_groups_3D, physical_groups_2D = util_extruded_mesh.build_extruded_thermal_mesh(
-        allpolygons, metals_list, materials_list, dielectrics_list, thermal_objects, margin, refined_cellsize,
-        refined_cellsize_override_dict, max_cellsize, unit, grid, fill_factor_correction, THERMAL_MESH_GROWTH)
-
-    if not preview_only:
-        _write_elmer_thermal_model(sim_path, unit, physical_groups_3D, physical_groups_2D, metals_list, materials_list,
-                                   dielectrics_list, thermal_objects, iterative, heat_flux_output)
-        gmsh.option.setNumber("Mesh.Binary", 0)
-        gmsh.option.setNumber("Mesh.SaveAll", 0)
-        gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
-        gmsh.write(msh_name)
-    if not no_gui:
-        gmsh.fltk.run()
-    gmsh.clear()
-    gmsh.finalize()
-    if not preview_only:
-        util_elmer.convert_mesh_to_elmer(msh_name, ELMER_MPI_THREADS)
 
 
 ######### end of function createSimulation ()  ##########
@@ -2042,14 +2012,6 @@ def create_model (excite_ports, settings):
     elmer_thermal_iterative = get_optional_setting (settings, "iterative", True)
     # Elmer thermal: also write heat flux and temperature gradient (per body) to the result file
     heat_flux_output = get_optional_setting (settings, "heat_flux_output", False)
-    # Elmer thermal: 'tetrahedral' (gmsh's 3D mesher) or 'extruded' (a 2D mesh repeated as prisms at every z level,
-    # for thin layers over a large area; see util_extruded_mesh.py)
-    thermal_mesh = get_optional_setting (settings, "thermal_mesh", 'tetrahedral')
-    if thermal_mesh not in ('tetrahedral', 'extruded'):
-        print(f"ERROR: settings['thermal_mesh'] = {thermal_mesh!r}: use 'tetrahedral' or 'extruded'")
-        exit(1)
-    if thermal_mesh == 'extruded' and not elmer_thermal:
-        print("Note: settings['thermal_mesh'] is for Elmer thermal models only, this model uses the normal mesh")
     if elmer_thermal:
         elmer = True
         filled_metals = True # solid metal volumes for thermal
@@ -2262,14 +2224,6 @@ def create_model (excite_ports, settings):
             elif object.type == 'constanttemp':
                 name=f'constanttemp_{object.source_layernum}'
                 thermal_boundary_dict[name]=[]
-
-        if thermal_mesh == 'extruded':
-            max_cellsize_outside = min(max_cellsize_air/math.sqrt(11.9), meshsize_max)
-            _create_extruded_thermal_model(settings, allpolygons, metals_list, materials_list, dielectrics_list,
-                                           thermal_objects, margin, unit, refined_cellsize, refined_cellsize_override_dict,
-                                           max_cellsize_outside, fill_factor_correction, elmer_thermal_iterative,
-                                           heat_flux_output, sim_path, msh_name, no_gui, preview_only, ELMER_MPI_THREADS)
-            return config_name, data_dir
 
 
     # add drawn geometries to gmsh model
@@ -3426,7 +3380,7 @@ def create_model (excite_ports, settings):
                 f.write('case.sif\n')
 
         else:
-            # Elmer thermal: the same code as for the extruded mesh
+            # Elmer thermal
             _write_elmer_thermal_model(sim_path, unit, physical_groups_3D, physical_groups_2D, metals_list,
                                        materials_list, dielectrics_list, thermal_objects, elmer_thermal_iterative,
                                        heat_flux_output)

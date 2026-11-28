@@ -159,66 +159,6 @@ settings['heat_flux_output'] = True   # default False: temperature only
 
 The result file then also holds the heat flux (W/m²) and the temperature gradient (K/m), both as vectors. See [Heat flux and temperature gradient](#heat-flux-and-temperature-gradient) below. It costs a few seconds of run time and makes the result file about 50 % larger.
 
-### Optional: extruded mesh for whole chips
-
-```python
-settings['thermal_mesh'] = 'extruded'   # default 'tetrahedral'
-```
-
-gmsh's 3D mesher fills every volume with tetrahedra and then fits them to the triangles on the volume's faces. For
-layers well under a micron thick that span hundreds of microns, such as the metal planes of a whole chip or
-filler-equivalent slabs, this fitting often fails: the log shows `Could not recover boundary mesh`, and the model
-stops with volumes without mesh. A finer mesh doesn't reliably help.
-
-A chip is a stack of flat layers, so the extruded mesh skips that step:
-
-1. The outlines of all layers, heat sources and boundaries are cut into faces that don't overlap.
-2. gmsh meshes these faces in 2D.
-3. The triangles are repeated at every height of the stackup. Each layer becomes one or more rows of prisms, finer
-   near the heat sources. Each prism gets the material of what is drawn on its layer there, with the same rules as
-   the normal mesh where layers overlap.
-
-There is no 3D meshing step, so a thin layer can't make it fail; it is simply one row of flat prisms. The model files
-are the same as with the normal mesh: bodies, materials, heat sources and boundaries.
-
-**Use it for the temperature map of a whole chip with thin metal planes, when the normal mesh fails.** It is a
-fallback, not a replacement: for most models the normal mesh is smaller and solves faster.
-
-Limits:
-
-- **Model size.** The cells in the plane are the same on every layer, so the fine cells at a heat source run through
-  the whole stack, and the fine rows near the heat source's height run across the whole chip. The model grows with
-  the number of heat sources and with how fine they are meshed. An interposer with two small heat sources far apart
-  had 3.5 times the nodes of the normal mesh and took longer overall. A whole chip with 0.5 µm cells at 8 npn
-  emitters had 2 million nodes; with the 0.1 µm such small heat sources need, 6 million.
-- **So not for device temperatures on a whole chip.** The peak temperature of a transistor needs a fine mesh at its
-  heat source, which an extruded whole-chip model can't afford. Use a small model of the device region with the
-  normal mesh for that.
-- **Solver.** Above roughly 1.2 million nodes, Elmer's ILU3 preconditioner (the default for thermal models) stops with
-  "Number of nonzeros larger than HUGE(Integer)". Split the model with `settings['ELMER_MPI_THREADS']` and run
-  `ElmerSolver_mpi`. The direct solver (`settings['iterative'] = False`) runs out of memory much earlier on this
-  mesh.
-- **Rare geometry.** Where edges of different layers almost meet, the 2D mesh can get triangles without area.
-  gds2palace joins faces thinner than half the grid to a neighbour and repairs the case of a hole touching its
-  outline at one point. If one is still left, the build stops with its location, and no mesh is written. Such cases
-  turned up on new layouts in the tests, so expect that another one can.
-
-Details:
-
-- **Outlines are snapped to a grid first**, 0.1 µm by default, so that edges of different layers that almost
-  coincide don't make tiny cells. `settings['thermal_mesh_grid']` changes it, in drawing units (e.g. `0.5` for
-  0.5 µm). A coarser grid gives a smaller model, but also moves edges by up to half of it. Heat sources get a finer
-  grid of their own if they are small: 1/20 of their smallest side, so an npn13G2 emitter keeps its size.
-- **Heat sources are refined as boxes**: `refined_cellsize` at the source, growing by 0.3 per unit of distance, as in
-  the normal mesh. `refined_cellsize_override` works the same way, for heat sources and for metal edges.
-- `substrate_refinement` has no effect.
-
-Checked on a whole chip (800 × 1100 µm, 100 mW in a 27 × 17 µm source, 200 µm silicon): without metal, the
-temperature rise agrees with the normal mesh within 0.5 % away from the source. At the source, the extruded mesh
-settles with fewer cells; the normal mesh rises towards that value as its cells get smaller and was still 1 % below
-it at 0.25 µm cells. With all drawn metal and filler-equivalent slabs, which the normal mesh couldn't build, the
-extruded model built in under a minute.
-
 ## 4. Run the script
 
 ```
