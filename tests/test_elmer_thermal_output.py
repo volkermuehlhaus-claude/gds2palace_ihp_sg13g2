@@ -46,6 +46,13 @@ def test_heat_flow_per_boundary_by_default(tmp_path):
     assert 'FluxSolver' not in text
 
 
+def test_iterative_solve_is_tight_enough_for_the_heat_balance(tmp_path):
+    """with 1e-7 the heat flow through the boundaries missed up to 3 % of the input power"""
+    heat = solver_blocks(case_sif(tmp_path, iterative=True))[1]
+    assert 'Linear System Iterative Method = BiCGStabl' in heat
+    assert 'Linear System Convergence Tolerance = 1.0e-10' in heat
+
+
 def test_min_max_temperature_reduced_with_mpi(tmp_path):
     minmax = solver_blocks(case_sif(tmp_path))[2]
     assert 'Filename = "../thermal_results.dat"' in minmax

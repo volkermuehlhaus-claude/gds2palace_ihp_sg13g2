@@ -65,6 +65,7 @@ import json
 import types
 
 from . import util_elmer
+from . import util_extruded_mesh
 from . import util_calibration
 from .util_stackup_reader import PEC_MATERIAL_NAME, thermal_conductivity_spec
 
@@ -1390,6 +1391,39 @@ def _report_pec_layer_in_thermal_model (metal, reported_layers):
               f'properties of copper ({PEC_THERMAL_EQUIVALENT.thermalcond:g} W/mK) in thermal model.')
 
 
+def _source_target_layer (source, metals_list):
+    """The stackup layer a heat source takes its z range and material from: it must exist and have a thickness."""
+    target_metal = metals_list.getbylayername(source.target_layername)
+    if target_metal is None:
+        raise _thermal_setup_error(
+            f"Thermal source on GDS layer {source.source_layernum}: "
+            f"target layer '{source.target_layername}' not found in stackup XML file. "
+            "Check that the stackup XML matches this layout and defines this layer name."
+        )
+    if target_metal.zmax <= target_metal.zmin:
+        xml_filename = getattr(metals_list, 'xml_filename', None)
+        in_file = f' in stackup file "{xml_filename}"' if xml_filename else ''
+        raise _thermal_setup_error(
+            f"Thermal source on GDS layer {source.source_layernum}: "
+            f"target layer '{source.target_layername}' has zero thickness{in_file} "
+            f"(sheet layer, Zmin = Zmax = {target_metal.zmin:g}). A heat source is a volume and takes "
+            "the thickness of its target layer -- choose a conductor or via target layer."
+        )
+    return target_metal
+
+
+def _boundary_target_layer (boundary, metals_list):
+    """The stackup layer a constant-temperature boundary takes its z position from (first match in the list)."""
+    target_metal = metals_list.getbylayername(boundary.target_layername)
+    if target_metal is None:
+        raise _thermal_setup_error(
+            f"Constant-temperature boundary on GDS layer {boundary.source_layernum}: "
+            f"target layer '{boundary.target_layername}' not found in stackup XML file. "
+            "Check that the stackup XML matches this layout and defines this layer name."
+        )
+    return target_metal
+
+
 def add_thermal_sources (allpolygons, metals_list, thermal_objects):
     """Add thermal_objects from special port layers to gmsh
 
@@ -1422,25 +1456,10 @@ def add_thermal_sources (allpolygons, metals_list, thermal_objects):
                         xmax = poly.xmax
                         ymin = poly.ymin
                         ymax = poly.ymax
-                        
-                        target_metal = metals_list.getbylayername(object.target_layername)
-                        if target_metal is None:
-                            raise _thermal_setup_error(
-                                f"Thermal source on GDS layer {object.source_layernum}: "
-                                f"target layer '{object.target_layername}' not found in stackup XML file. "
-                                "Check that the stackup XML matches this layout and defines this layer name."
-                            )
+
+                        target_metal = _source_target_layer(object, metals_list)
                         zmin = target_metal.zmin
                         zmax = target_metal.zmax
-                        if zmax <= zmin:
-                            xml_filename = getattr(metals_list, 'xml_filename', None)
-                            in_file = f' in stackup file "{xml_filename}"' if xml_filename else ''
-                            raise _thermal_setup_error(
-                                f"Thermal source on GDS layer {object.source_layernum}: "
-                                f"target layer '{object.target_layername}' has zero thickness{in_file} "
-                                f"(sheet layer, Zmin = Zmax = {zmin:g}). A heat source is a volume and takes "
-                                "the thickness of its target layer -- choose a conductor or via target layer."
-                            )
 
                         box_tag = gmsh.model.occ.addBox(xmin,ymin,zmin,xmax-xmin,ymax-ymin,zmax-zmin)
                         gmsh.model.setEntityName(dim=3,tag=box_tag, name=f'source_{object.source_layernum}')
@@ -1493,14 +1512,7 @@ def add_thermal_boundaries (allpolygons, metals_list, thermal_objects):
 
                         surface_tags = []
 
-                        #get target layer, first match in list
-                        target_metal = metals_list.getbylayername (object.target_layername)
-                        if target_metal is None:
-                            raise _thermal_setup_error(
-                                f"Constant-temperature boundary on GDS layer {object.source_layernum}: "
-                                f"target layer '{object.target_layername}' not found in stackup XML file. "
-                                "Check that the stackup XML matches this layout and defines this layer name."
-                            )
+                        target_metal = _boundary_target_layer(object, metals_list)
                         for surfacetag_bot in create_surfaces_from_polygon (poly, target_metal.zmin, 0):
                             gmsh.model.setEntityName(dim=2,tag=surfacetag_bot, name=f'constanttemp_{object.source_layernum}')
                             surface_tags.append(surfacetag_bot)
@@ -1520,6 +1532,219 @@ def add_thermal_boundaries (allpolygons, metals_list, thermal_objects):
     return tags_created_2D
 
 
+
+
+def _material_from_layer_or_dielectric_name (layername, metals_list, materials_list, dielectrics_list):
+    """Stackup material of a drawn layer, or else of a <Dielectric> with that name; None if neither."""
+    material = None
+    layer = metals_list.getbylayername(layername)
+    if layer is not None:
+        material = materials_list.get_by_name(layer.material)
+    if material is None:
+        dielectric = dielectrics_list.get_by_name(layername)
+        if dielectric is not None:
+            material = materials_list.get_by_name(dielectric.material)
+    return material
+
+
+def _elmer_thermal_config (physical_groups_3D, physical_groups_2D, metals_list, materials_list, dielectrics_list,
+                           thermal_objects):
+    """Elmer thermal model: materials, bodies, heat sources (body forces) and constant-temperature boundaries from the
+    physical groups of the mesh, for util_elmer.write_elmer_thermal_file(). The same for both meshes (tetrahedral
+    and extruded). Bodies are identified by physical group name (Use Mesh Names).
+
+    Returns:
+        Elmer_materials, Elmer_bodies, Elmer_body_forces, Elmer_thermal_boundaryconditions
+    """
+    Elmer_materials, Elmer_bodies, Elmer_body_forces, Elmer_thermal_boundaryconditions = [], [], [], []
+    pec_layers_reported = set()
+
+    for item in physical_groups_3D:
+        layername = item["layername"]
+        groupname = item["groupname"]
+        metal = metals_list.getbylayername(layername)
+        # fill factor of merged via arrays, 1.0 unless fill_factor_correction split this via layer
+        via_fill_factor = item.get("fill_factor", 1.0) if (metal is not None and metal.is_via) else 1.0
+
+        if metal is not None and _is_pec_material(metal.material):
+            # PEC volume, or heat source with a PEC target layer
+            _report_pec_layer_in_thermal_model(metal, pec_layers_reported)
+            material = PEC_THERMAL_EQUIVALENT
+        else:
+            material = _material_from_layer_or_dielectric_name(layername, metals_list, materials_list, dielectrics_list)
+        if material is None:
+            continue
+
+        # scaled via material gets its own name, e.g. TopVia2_x0.49
+        Elmer_material = {'name': material.name if via_fill_factor == 1.0 else f'{material.name}_x{via_fill_factor:.2f}',
+                          'permittivity': material.eps,
+                          'conductivity': material.sigma * via_fill_factor,
+                          'density': material.density}
+        # constant or table, the same in all directions or per direction (size 3)
+        thermalcond, size = _elmer_heat_conductivity(material, via_fill_factor)
+        Elmer_material['thermalcond'] = thermalcond
+        if size == 3:
+            Elmer_material['thermalcond_size'] = 3
+        if Elmer_material not in Elmer_materials:
+            Elmer_materials.append(Elmer_material)
+
+        # the layer name, or <layer>_x<fill factor> for a via layer split by fill_factor_correction
+        Elmerbody = {'name': groupname, 'material': Elmer_materials.index(Elmer_material) + 1}
+        if "source_" in groupname:
+            # heat source: Volumetric Heat Source = -distribute <power> on this body
+            source = thermal_objects.get_object_by_layernumber(int(groupname.replace("source_", "")))
+            if source is not None:
+                Elmer_body_forces.append(source.power)
+                Elmerbody['bodyforce_number'] = len(Elmer_body_forces)
+        Elmer_bodies.append(Elmerbody)
+
+    for item in physical_groups_2D:
+        layername = item["layername"]
+        groupname = item["groupname"]
+        metal = metals_list.getbylayername(layername)
+        if metal is not None and _is_pec_material(metal.material) and not groupname.startswith('constanttemp_'):
+            # PEC sheet ignored; surfaces of a PEC volume need no thermal boundary
+            _report_pec_layer_in_thermal_model(metal, pec_layers_reported)
+            continue
+        if "constanttemp_" in groupname:
+            thermal_boundary = thermal_objects.get_object_by_layernumber(int(groupname.replace("constanttemp_", "")))
+            if thermal_boundary is not None:
+                Elmer_thermal_boundaryconditions.append({'name': groupname, 'temp': thermal_boundary.temp})
+
+    return Elmer_materials, Elmer_bodies, Elmer_body_forces, Elmer_thermal_boundaryconditions
+
+
+def _elmer_em_config (physical_groups_3D, physical_groups_2D, metals_list, materials_list, dielectrics_list):
+    """Elmer EM model: materials, bodies, conductor boundaries and PEC boundaries from the physical groups of the mesh.
+
+    Returns:
+        Elmer_materials, Elmer_bodies, Elmer_boundaries, Elmer_boundaries_PEC
+    """
+    Elmer_materials, Elmer_bodies, Elmer_boundaries, Elmer_boundaries_PEC = [], [], [], []
+
+    for item in physical_groups_3D:
+        # items can be from via layer, filled/solid metal volume, or dielectric stackup
+        layername = item["layername"]
+        groupname = item["groupname"]
+        metal = metals_list.getbylayername(layername)
+        via_fill_factor = item.get("fill_factor", 1.0) if (metal is not None and metal.is_via) else 1.0
+
+        if metal is not None and _is_pec_material(metal.material):
+            # PEC via or filled/solid metal: Elmer has no ideal-conductor volume either,
+            # approximate with the same fixed very high conductivity domain as Palace output
+            print(f'Layer "{metal.name}" uses the reserved "PEC" material - approximated as a '
+                  f'{PEC_VIA_EQUIVALENT_CONDUCTIVITY:.0e} S/m conductivity domain, since Elmer '
+                  f'has no ideal-conductor volume.')
+            Elmer_material = {'name': PEC_MATERIAL_NAME, 'permittivity': 1.0,
+                              'conductivity': PEC_VIA_EQUIVALENT_CONDUCTIVITY}
+            if Elmer_material not in Elmer_materials:
+                Elmer_materials.append(Elmer_material)
+            # body name must match the gmsh physical group name (Use Mesh Names)
+            Elmer_bodies.append({'name': groupname, 'material': Elmer_materials.index(Elmer_material) + 1})
+            continue
+
+        if layername == 'airbox':
+            Elmer_material = {'name': 'airbox', 'permittivity': 1.0, 'conductivity': 0.0}
+        else:
+            material = _material_from_layer_or_dielectric_name(layername, metals_list, materials_list, dielectrics_list)
+            if material is None:
+                continue
+            # scaled via material gets its own name, e.g. TopVia2_x0.49
+            Elmer_material = {'name': material.name if via_fill_factor == 1.0 else f'{material.name}_x{via_fill_factor:.2f}',
+                              'permittivity': material.eps,
+                              'conductivity': material.sigma * via_fill_factor}
+        if Elmer_material not in Elmer_materials:
+            Elmer_materials.append(Elmer_material)
+        # volumes are identified by physical group name (Use Mesh Names): the layer
+        # name, or <layer>_x<fill factor> for a via layer split by fill_factor_correction
+        Elmer_bodies.append({'name': groupname, 'material': Elmer_materials.index(Elmer_material) + 1})
+
+    for item in physical_groups_2D:
+        # items can be from surface of metal conductor
+        layername, groupname, grouptag = item.values()
+        metal = metals_list.getbylayername(layername)
+
+        if metal is not None and _is_pec_material(metal.material):
+            if metal.is_metal or metal.is_sheet:
+                # ideal conductor: literal PEC boundary, same "E re/im {e} = Real 0"
+                # construct already used for the outer airbox faces
+                Elmer_boundaries_PEC.append(gmsh.model.getPhysicalName(2, grouptag))
+            # metal.is_via: no boundary needed, same as a regular via lateral surface below
+            continue
+
+        material = _material_from_layer_or_dielectric_name(layername, metals_list, materials_list, dielectrics_list)
+        if material is None:
+            # this should not happen!
+            print(f'No material found for this conductor: {layername} {groupname}')
+            continue
+        if metal is None:
+            continue
+        if metal.is_metal:
+            # regular metal
+            Elmer_boundaries.append({'name': gmsh.model.getPhysicalName(2, grouptag),
+                                     'conductivity': material.sigma,
+                                     'thickness': metal.thickness})
+        elif metal.is_sheet:
+            # sheet metal for resistors etc
+            print('Sheet resistors not supported yet for Elmer model output!')
+            exit(1)
+        elif metal.is_via:
+            # via lateral surface, registered only for mesh refinement/visualization -
+            # the via itself is already a domain conductor via physical_groups_3D, so no
+            # boundary condition is needed for its surface
+            pass
+        else:
+            # we should never get here
+            print(f'Invalid surface found, layer {metal}, physical group {grouptag}')
+
+    return Elmer_materials, Elmer_bodies, Elmer_boundaries, Elmer_boundaries_PEC
+
+
+def _write_elmer_thermal_model (sim_path, unit, physical_groups_3D, physical_groups_2D, metals_list, materials_list,
+                                dielectrics_list, thermal_objects, iterative, heat_flux_output):
+    """case.sif and ELMERSOLVER_STARTINFO of an Elmer thermal model, from the physical groups of its mesh"""
+    Elmer_materials, Elmer_bodies, Elmer_body_forces, Elmer_thermal_boundaryconditions = _elmer_thermal_config(
+        physical_groups_3D, physical_groups_2D, metals_list, materials_list, dielectrics_list, thermal_objects)
+    util_elmer.write_elmer_thermal_file(unit,
+                                        os.path.join(sim_path, 'case.sif'),
+                                        Elmer_materials,
+                                        Elmer_bodies,
+                                        [],
+                                        Elmer_body_forces,
+                                        Elmer_thermal_boundaryconditions,
+                                        iterative=iterative,
+                                        heat_flux_output=heat_flux_output)
+    with open(os.path.join(sim_path, 'ELMERSOLVER_STARTINFO'), "w") as f:
+        f.write('case.sif\n')
+
+
+def _create_extruded_thermal_model (settings, allpolygons, metals_list, materials_list, dielectrics_list,
+                                    thermal_objects, margin, unit, refined_cellsize, refined_cellsize_override_dict,
+                                    max_cellsize, fill_factor_correction, iterative, heat_flux_output, sim_path,
+                                    msh_name, no_gui, preview_only, ELMER_MPI_THREADS):
+    """Elmer thermal model with the extruded mesh (settings['thermal_mesh'] = 'extruded', see util_extruded_mesh.py),
+    in the gmsh model that create_model() has started. Writes the mesh, case.sif and the Elmer mesh folder."""
+    grid = settings.get('thermal_mesh_grid', 0.1e-6 / unit)
+    print(f'Thermal mesh: extruded (outlines snapped to a {grid:g} grid)')
+    if settings.get('substrate_refinement', False):
+        print("Note: settings['substrate_refinement'] has no effect with the extruded thermal mesh")
+    physical_groups_3D, physical_groups_2D = util_extruded_mesh.build_extruded_thermal_mesh(
+        allpolygons, metals_list, materials_list, dielectrics_list, thermal_objects, margin, refined_cellsize,
+        refined_cellsize_override_dict, max_cellsize, unit, grid, fill_factor_correction, THERMAL_MESH_GROWTH)
+
+    if not preview_only:
+        _write_elmer_thermal_model(sim_path, unit, physical_groups_3D, physical_groups_2D, metals_list, materials_list,
+                                   dielectrics_list, thermal_objects, iterative, heat_flux_output)
+        gmsh.option.setNumber("Mesh.Binary", 0)
+        gmsh.option.setNumber("Mesh.SaveAll", 0)
+        gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
+        gmsh.write(msh_name)
+    if not no_gui:
+        gmsh.fltk.run()
+    gmsh.clear()
+    gmsh.finalize()
+    if not preview_only:
+        util_elmer.convert_mesh_to_elmer(msh_name, ELMER_MPI_THREADS)
 
 
 ######### end of function createSimulation ()  ##########
@@ -1817,6 +2042,14 @@ def create_model (excite_ports, settings):
     elmer_thermal_iterative = get_optional_setting (settings, "iterative", True)
     # Elmer thermal: also write heat flux and temperature gradient (per body) to the result file
     heat_flux_output = get_optional_setting (settings, "heat_flux_output", False)
+    # Elmer thermal: 'tetrahedral' (gmsh's 3D mesher) or 'extruded' (a 2D mesh repeated as prisms at every z level,
+    # for thin layers over a large area; see util_extruded_mesh.py)
+    thermal_mesh = get_optional_setting (settings, "thermal_mesh", 'tetrahedral')
+    if thermal_mesh not in ('tetrahedral', 'extruded'):
+        print(f"ERROR: settings['thermal_mesh'] = {thermal_mesh!r}: use 'tetrahedral' or 'extruded'")
+        exit(1)
+    if thermal_mesh == 'extruded' and not elmer_thermal:
+        print("Note: settings['thermal_mesh'] is for Elmer thermal models only, this model uses the normal mesh")
     if elmer_thermal:
         elmer = True
         filled_metals = True # solid metal volumes for thermal
@@ -2029,6 +2262,14 @@ def create_model (excite_ports, settings):
             elif object.type == 'constanttemp':
                 name=f'constanttemp_{object.source_layernum}'
                 thermal_boundary_dict[name]=[]
+
+        if thermal_mesh == 'extruded':
+            max_cellsize_outside = min(max_cellsize_air/math.sqrt(11.9), meshsize_max)
+            _create_extruded_thermal_model(settings, allpolygons, metals_list, materials_list, dielectrics_list,
+                                           thermal_objects, margin, unit, refined_cellsize, refined_cellsize_override_dict,
+                                           max_cellsize_outside, fill_factor_correction, elmer_thermal_iterative,
+                                           heat_flux_output, sim_path, msh_name, no_gui, preview_only, ELMER_MPI_THREADS)
+            return config_name, data_dir
 
 
     # add drawn geometries to gmsh model
@@ -2644,15 +2885,7 @@ def create_model (excite_ports, settings):
    
 
     def get_material_from_layer_or_dielectric_name (layername):
-        material = None
-        layer = metals_list.getbylayername(layername)
-        if layer is not None:
-            material = materials_list.get_by_name(layer.material)
-        if material is None:
-                dielectric = dielectrics_list.get_by_name(layername)
-                if dielectric is not None:
-                    material = materials_list.get_by_name(dielectric.material)
-        return material                    
+        return _material_from_layer_or_dielectric_name(layername, metals_list, materials_list, dielectrics_list)
 
 
     # ----------------  PALACE CONFIG  -----------------
@@ -2778,9 +3011,6 @@ def create_model (excite_ports, settings):
     # keys: "layername", "groupname", "grouptag", "fill_factor"
 
     Palace_materials = []
-
-    # thermal model: PEC layers already reported (see _report_pec_layer_in_thermal_model)
-    thermal_pec_layers_reported = set()
 
     for item in physical_groups_3D:
         # items can be from via layer, filled/solid metal volume, or dielectric stackup
@@ -3124,185 +3354,10 @@ def create_model (excite_ports, settings):
     # Optional output for Elmer FEM solver
     if elmer:
 
-        # bodies
-
-        Elmer_materials  = []
-        Elmer_bodies     = []
-        Elmer_boundaries = []
-        Elmer_boundaries_PEC = []
-
-        if elmer_thermal:
-            # thermal sources
-            Elmer_body_forces = []
-            Elmer_thermal_boundaryconditions = []
-
-
-        for item in physical_groups_3D:
-            # items can be from via layer, filled/solid metal volume, or dielectric stackup
-
-            layername = item["layername"]
-            groupname = item["groupname"]
-            grouptag = item["grouptag"]
-            metal = metals_list.getbylayername(layername)
-            # fill factor of merged via arrays, 1.0 unless fill_factor_correction split this via layer
-            via_fill_factor = item.get("fill_factor", 1.0) if (metal is not None and metal.is_via) else 1.0
-
-            pec_layer = metal is not None and _is_pec_material(metal.material)
-
-            if pec_layer and not elmer_thermal:
-                # PEC via or filled/solid metal: Elmer has no ideal-conductor volume either,
-                # approximate with the same fixed very high conductivity domain as Palace output
-                print(f'Layer "{metal.name}" uses the reserved "PEC" material - approximated as a '
-                      f'{PEC_VIA_EQUIVALENT_CONDUCTIVITY:.0e} S/m conductivity domain, since Elmer '
-                      f'has no ideal-conductor volume.')
-                Elmer_material = {'name': PEC_MATERIAL_NAME, 'permittivity': 1.0,
-                                   'conductivity': PEC_VIA_EQUIVALENT_CONDUCTIVITY}
-                if Elmer_material not in Elmer_materials:
-                    Elmer_materials.append(Elmer_material)
-                material_index = Elmer_materials.index(Elmer_material)
-                # body name must match the gmsh physical group name (Use Mesh Names)
-                Elmer_bodies.append({'name': groupname, 'material': material_index+1})
-                continue
-
-            if pec_layer:
-                # thermal model: PEC volume, or heat source with a PEC target layer
-                _report_pec_layer_in_thermal_model(metal, thermal_pec_layers_reported)
-                material = PEC_THERMAL_EQUIVALENT
-            else:
-                material = get_material_from_layer_or_dielectric_name(layername)
-
-            if (material is not None) or (layername == 'airbox'):
-                Elmer_material = {}
-
-                if layername == 'airbox':
-                    Elmer_material['name']='airbox'
-                    Elmer_material['permittivity']=1.0
-                    Elmer_material['conductivity']=0.0
-
-                    if elmer_thermal:
-                        Elmer_material['thermalcond']=0.026
-                        Elmer_material['density']=1.2
-                else:
-                    # scaled via material gets its own name, e.g. TopVia2_x0.49
-                    Elmer_material['name']=material.name if via_fill_factor == 1.0 else f'{material.name}_x{via_fill_factor:.2f}'
-                    Elmer_material['permittivity']=material.eps
-                    Elmer_material['conductivity']=material.sigma * via_fill_factor
-
-                    if elmer_thermal:
-                        Elmer_material['density']=material.density
-                        # constant or table, the same in all directions or per direction (size 3)
-                        thermalcond, size = _elmer_heat_conductivity(material, via_fill_factor)
-                        Elmer_material['thermalcond']=thermalcond
-                        if size == 3:
-                            Elmer_material['thermalcond_size']=3
-
-                
-                if Elmer_material != {}:
-                    if Elmer_material not in Elmer_materials:
-                        Elmer_materials.append(Elmer_material)
-
-                    material_index = Elmer_materials.index(Elmer_material)
-                
-                    # volumes are identified by physical group name (Use Mesh Names): the layer
-                    # name, or <layer>_x<fill factor> for a via layer split by fill_factor_correction
-                    Elmerbody = {}
-                    Elmerbody['name']=groupname
-                    Elmerbody['material']=material_index+1
-                
-                    if elmer_thermal:
-                        # special case are thermal sources, which are identified by groupname prefix "source_"
-                        if "source_" in groupname:
-                            # get source properties from source_layer
-                            source_layer = int(groupname.replace("source_",""))
-                            source = thermal_objects.get_object_by_layernumber(source_layer)
-                            if source is not None:
-                                # Elmer heat source with power for given volume
-                                # Volumetric Heat Source = -distribute 1.0 
-                                force = source.power 
-
-                                index = len(Elmer_body_forces)+1
-                                Elmer_body_forces.append(force)
-
-                                # store body force index in body
-                                Elmerbody['bodyforce_number']=index
-
-                                # use name of thermal source, not material name
-                                Elmerbody['name']=groupname
-
-                    Elmer_bodies.append(Elmerbody)
-  
-
-
-        # surfaces
-        for item in physical_groups_2D:
-            # items can be from surface of metal conductor
-            layername, groupname, grouptag = item.values()
-
-            metal = metals_list.getbylayername(layername)
-
-            if metal is not None and _is_pec_material(metal.material):
-                if elmer_thermal:
-                    if not groupname.startswith('constanttemp_'):
-                        # PEC sheet ignored; surfaces of a PEC volume need no thermal boundary
-                        _report_pec_layer_in_thermal_model(metal, thermal_pec_layers_reported)
-                        continue
-                    # constant temperature boundary at the PEC layer's z position: handled below
-                else:
-                    if metal.is_metal or metal.is_sheet:
-                        # ideal conductor: literal PEC boundary, same "E re/im {e} = Real 0"
-                        # construct already used for the outer airbox faces
-                        Elmer_boundaries_PEC.append(gmsh.model.getPhysicalName(2, grouptag))
-                    # metal.is_via: no boundary needed, same as a regular via lateral surface below
-                    continue
-
-            material = get_material_from_layer_or_dielectric_name(layername)
-
-            if not elmer_thermal:
-                #regular RF EM
-                if material is not None:
-
-                    if metal is not None:
-
-                        if metal.is_metal:
-                            # regular metal
-                            Elmer_boundary = {}
-                            Elmer_boundary['name'] = gmsh.model.getPhysicalName(2,grouptag)
-                            Elmer_boundary['conductivity'] = material.sigma
-                            Elmer_boundary['thickness'] = metal.thickness
-                            Elmer_boundaries.append(Elmer_boundary)
-
-                        elif metal.is_sheet:
-                            # sheet metal for resistors etc
-                            print('Sheet resistors not supported yet for Elmer model output!')
-                            exit(1)
-                        elif metal.is_via:
-                            # via lateral surface, registered only for mesh refinement/visualization -
-                            # the via itself is already a domain conductor via physical_groups_3D, so no
-                            # boundary condition is needed for its surface
-                            pass
-                        else:
-                            # we should never get here
-                            print(f'Invalid surface found, layer {metal}, physical group {grouptag}')
-                else:    
-                    # this should not happen!
-                    print(f'No material found for this conductor: {layername} {group_name}')
-            else:
-                # Elmer thermal model
-                if "constanttemp_" in groupname:
-                        # get source properties from source_layer
-                        source_layer = int(groupname.replace("constanttemp_",""))
-                        thermal_boundary = thermal_objects.get_object_by_layernumber(source_layer)
-                        if thermal_boundary is not None:       
-
-                            Elmer_boundary = {}
-                            Elmer_boundary['name'] = gmsh.model.getPhysicalName(2,grouptag)
-                            Elmer_boundary['temp'] = thermal_boundary.temp
-                            Elmer_thermal_boundaryconditions.append(Elmer_boundary)
-
-
-
         if not elmer_thermal:
             # RF EM simulation
+            Elmer_materials, Elmer_bodies, Elmer_boundaries, Elmer_boundaries_PEC = _elmer_em_config(
+                physical_groups_3D, physical_groups_2D, metals_list, materials_list, dielectrics_list)
 
             # PORTS
             Elmer_ports = []
@@ -3367,26 +3422,14 @@ def create_model (excite_ports, settings):
             # write_case_and_solver_files (targetdir, order, iterative) 
             util_elmer.write_case_and_solver_files (sim_path, order, iterative, ELMER_MPI_THREADS=ELMER_MPI_THREADS)
 
+            with open(os.path.join(sim_path, 'ELMERSOLVER_STARTINFO'), "w") as f:
+                f.write('case.sif\n')
+
         else:
-
-            # write case.sif file for Elmer thermal
-            elmer_thermal_file = os.path.join(sim_path, 'case.sif')
-            util_elmer.write_elmer_thermal_file (unit,
-                                                    elmer_thermal_file,
-                                                    Elmer_materials,
-                                                    Elmer_bodies,
-                                                    Elmer_boundaries,
-                                                    Elmer_body_forces,
-                                                    Elmer_thermal_boundaryconditions,
-                                                    iterative=elmer_thermal_iterative,
-                                                    heat_flux_output=heat_flux_output)
-
-
-
-        elmer_start_file = os.path.join(sim_path, 'ELMERSOLVER_STARTINFO')
-        with open(elmer_start_file, "w") as f:  
-            f.write('case.sif\n')
-        f.close()  
+            # Elmer thermal: the same code as for the extruded mesh
+            _write_elmer_thermal_model(sim_path, unit, physical_groups_3D, physical_groups_2D, metals_list,
+                                       materials_list, dielectrics_list, thermal_objects, elmer_thermal_iterative,
+                                       heat_flux_output)
 
     
     if save_gmsh_geometry:

@@ -307,6 +307,8 @@ is the complete list, search for `get_optional_setting`):
 | `iterative` | `False` for Elmer EM, `True` for Elmer thermal | Elmer linear solver: iterative or direct (EM: MUMPS, thermal: UMFPACK) |
 | `ELMER_MPI_THREADS` | `1` | Elmer: number of MPI processes; the mesh is partitioned for them and `run_elmer` starts `mpirun`/`mpiexec` |
 | `heat_flux_output` | `False` | Elmer thermal: also write heat flux (W/m²) and temperature gradient (K/m), per body, to the result file |
+| `thermal_mesh` | `'tetrahedral'` | Elmer thermal: `'extruded'` meshes the layout in 2D and repeats it as prisms at every z level, with no 3D meshing step. A fallback for the temperature map of a whole chip, when thin layers over a large area (metal planes) make the tetrahedral mesh fail. Same model files. Not for device peak temperatures: the fine cells at a heat source run through all layers and the fine rows across the whole chip, so many or tiny heat sources make the model very large (gds2palace 0.13.0 and newer) |
+| `thermal_mesh_grid` | 0.1 µm | Extruded thermal mesh: outlines are snapped to this grid, in drawing units. A finer grid can leave triangles without area where edges of different layers almost meet: the build then stops with their location |
 
 **Unknown keys are silently ignored.** A typo such as `settings['nogui']`
 leaves the default in place: with `no_gui` at `False`, gmsh opens a window and
@@ -465,6 +467,11 @@ Simplify GDS), the original vias are gone and no correction is possible.
     and `temperature grad`, per body). `python -m gds2palace.scripts.thermal_summary <path>`
     prints them. The heat flow always adds up to the input power, so it is
     no mesh check: for that, compare with a run with a finer mesh.
+  - If meshing a thermal model fails with `Could not recover boundary mesh` or
+    volumes without mesh (typical for a whole chip with its metal planes), use
+    `settings['thermal_mesh'] = 'extruded'` instead of trying finer meshes, for
+    the chip's temperature map. Check its size first: above about 1.2 million
+    nodes it needs `ELMER_MPI_THREADS`. See its limits in `Elmer_Thermal_Workflow.md`.
 
   Full guide: [`Elmer_Thermal_Workflow.md`](more_examples/thermal_simulation_using_Elmer/Elmer_Thermal_Workflow.md).
 

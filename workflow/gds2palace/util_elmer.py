@@ -449,10 +449,14 @@ def write_elmer_thermal_file (unit,
             # and IDRS with ILU1, and ILU2 on one), ILU3 converged on all four, mostly faster than ILU1
             # and the direct solver, with the same temperatures. A run that still doesn't converge stops
             # after 10000 iterations, within minutes, instead of running for an hour.
+            # Tolerance 1e-10: the residual is relative to a right-hand side that holds the fixed temperatures
+            # (about 300 K), so with 1e-7 a few mW could stay unbalanced: the heat flow through the boundaries
+            # of a 70 mW interposer model summed to 0.4 % (tetrahedral mesh) and 3.3 % (extruded mesh) less than
+            # the input, and its peak was 0.08 K low. With 1e-10 it balances, at the same run time.
             linear_system_block = '''Linear System Solver = Iterative
 Linear System Iterative Method = BiCGStabl
 Linear System Max Iterations = 10000
-Linear System Convergence Tolerance = 1.0e-7
+Linear System Convergence Tolerance = 1.0e-10
 Linear System Preconditioning = ILU3'''
         else:
             # MUMPS is not available in the Windows Elmer build - UMFPACK ships

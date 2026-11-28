@@ -39,6 +39,7 @@ Palace nor Elmer is part of this package** — see §5.
 | `util_stackup_reader.py` | Parses the XML technology stackup file (`read_substrate()`); has its own reader `__version__` |
 | `util_gds_reader.py` | Reads the GDSII layout with gdstk into polygon objects (`read_gds()`): design-cell selection, flattening, via merging, derived layers, polygon repair |
 | `util_simulation_setup.py` | The largest module, the core engine: ports, gmsh geometry/mesh construction, Palace `config.json` writer, Elmer `.sif` data (`create_model()`) |
+| `util_extruded_mesh.py` | The extruded mesh of Elmer thermal models (`settings['thermal_mesh'] = 'extruded'`): all outlines cut into faces with shapely, a 2D gmsh mesh of them, repeated as prisms at every z level, built as discrete entities with the same physical groups as the tetrahedral mesh. Called from `create_model()` through `_create_extruded_thermal_model()`; not re-exported |
 | `util_elmer.py` | Elmer-specific file writers (EM case/solver files, thermal `case.sif`) and the `ElmerGrid` mesh conversion — internal, never imported directly by model scripts |
 | `util_utilities.py` | Path/filename helpers, the `run_sim`/`run_elmer` wrapper-script generators, the stackups and result scripts that ship with the package |
 | `util_calibration.py` | Port walls (box sides set to `'PORTWALL'`): finds the wall ports, cuts their gaps, the cross-section at the wall, D and the standards' length, writes the calibration standards through `create_model()`, the `run_sim` lines for them. Exported as `calibration` |

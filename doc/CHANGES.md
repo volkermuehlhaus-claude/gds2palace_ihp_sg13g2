@@ -6,6 +6,7 @@ This is an (incomplete) list of changes and new features.
 
 The main new features of the last months, with the version that brought them:
 
+- **Extruded mesh for thermal models**, for whole chips with thin metal planes (28 November)
 - **Ready-made Palace 0.20.0 container image**, the default of the install scripts (26 November)
 - **Overlapping materials with Priority**, e.g. mold compound drawn over a die (0.13.0)
 - **Thermal conductivity lateral and vertical**, and **limits for stackup variables** (0.13.0)
@@ -17,6 +18,17 @@ The main new features of the last months, with the version that brought them:
 - **`settings['conductor_model']`**: one setting for the conductor model, for accurate conductor loss (0.9.0)
 
 Each dated section below lists the new features first, then changed behaviour, then fixes.
+
+## 28 November-2026
+
+### New
+
+**Extruded mesh for thermal models**  
+`settings['thermal_mesh'] = 'extruded'` builds an Elmer thermal model without gmsh's 3D mesher. The layout's outlines are meshed in 2D, and that mesh is repeated at every height of the stackup, as rows of prisms. Thin layers over a large area, such as the metal planes of a whole chip, often made the normal mesh fail ("Could not recover boundary mesh", volumes without mesh). The extruded mesh has no 3D meshing step, so thin layers don't make it fail. The model files are the same as with the normal mesh: the same bodies, materials, heat sources and boundaries. It is a fallback for the temperature map of a whole chip, not a replacement: the fine cells at a heat source run through every layer and the fine rows across the whole chip, so with many or very small heat sources the model gets much larger than with the normal mesh, and it is not suited for the peak temperature of single devices on a whole chip. See "Extruded mesh" in `Elmer_Thermal_Workflow.md`.
+
+### Fixes
+
+- Thermal models with the iterative solver (the default): the solver now stops at a tolerance of 1e-10 instead of 1e-7. With 1e-7, the heat flow through the constant-temperature boundaries could add up to a few percent less than the input power (0.4 % on an interposer model with the normal mesh), and the temperatures were slightly low. The run time is the same.
 
 ## 27 November-2026
 
